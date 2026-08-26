@@ -1,0 +1,1117 @@
+{
+  "common/api-server.json": {
+    "canonicalSha256": "fd24d558533e43c622f69dfb9f26b6665c31b3674f79da07ec1761b42c6ea6e1",
+    "datasourceUids": [
+      "${datasource}",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "Kubernetes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "panelTypes": [
+      "text",
+      "stat",
+      "timeseries",
+      "stat",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "stat",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "common/api-server.json",
+    "targetCount": 16,
+    "title": "Kubernetes / API server",
+    "uid": "09ec8aa1e996d6ffcd6817bbaff4db1b",
+    "variableNames": [
+      "datasource",
+      "cluster",
+      "instance"
+    ]
+  },
+  "common/coredns.json": {
+    "canonicalSha256": "26d92fec59c5caf12c53f069cff7f720380b6bd52f873c98d34b878bc5da40bb",
+    "datasourceUids": [
+      "$datasource",
+      "${datasource}",
+      "grafana"
+    ],
+    "folder": "Kubernetes",
+    "panelIds": [
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      14,
+      32,
+      18,
+      20,
+      22,
+      24
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "common/coredns.json",
+    "targetCount": 24,
+    "title": "CoreDNS",
+    "uid": "vkQ0UHxik",
+    "variableNames": [
+      "datasource",
+      "cluster",
+      "job",
+      "instance"
+    ]
+  },
+  "common/kubelet.json": {
+    "canonicalSha256": "336aa14135d86af6a44fc6ef3c43b2f7cc47c021d3d43b155f959387435a8388",
+    "datasourceUids": [
+      "${datasource}",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "Kubernetes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "panelTypes": [
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "common/kubelet.json",
+    "targetCount": 27,
+    "title": "Kubernetes / Kubelet",
+    "uid": "3138fa155d5915769fbded898ac09fd9",
+    "variableNames": [
+      "datasource",
+      "cluster",
+      "instance"
+    ]
+  },
+  "common/persistent-volumes.json": {
+    "canonicalSha256": "071fe3a7e3c1a0a7bcdf0990ba559ab52183deac90755b6121ddc0a8c1e1963c",
+    "datasourceUids": [
+      "${datasource}",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "Kubernetes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "panelTypes": [
+      "timeseries",
+      "gauge",
+      "timeseries",
+      "gauge"
+    ],
+    "relativePath": "common/persistent-volumes.json",
+    "targetCount": 6,
+    "title": "Kubernetes / Persistent Volumes",
+    "uid": "919b92a8e8041bd567af9edab12c840c",
+    "variableNames": [
+      "datasource",
+      "cluster",
+      "namespace",
+      "volume"
+    ]
+  },
+  "common/pods-resources.json": {
+    "canonicalSha256": "6c6713dc54ea2446c04990e0568f94a78d702e50ea963514d86b868f43058457",
+    "datasourceUids": [
+      "${datasource}",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "Kubernetes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+    ],
+    "panelTypes": [
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "timeseries",
+      "table",
+      "timeseries",
+      "table",
+      "table",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "table"
+    ],
+    "relativePath": "common/pods-resources.json",
+    "targetCount": 43,
+    "title": "Kubernetes / Compute Resources / Namespace (Pods)",
+    "uid": "85a562078cdf77779eaa1add43ccec1e",
+    "variableNames": [
+      "datasource",
+      "cluster",
+      "namespace"
+    ]
+  },
+  "common/prometheus.json": {
+    "canonicalSha256": "e7450849003127c65abfbff14382cd7621fb17189fe8ddbc6894da09762a78e8",
+    "datasourceUids": [
+      "$datasource",
+      "-- Grafana --",
+      "prometheus"
+    ],
+    "folder": "Kubernetes",
+    "panelIds": [
+      12,
+      10,
+      2,
+      8,
+      6,
+      7,
+      11,
+      15,
+      9,
+      4,
+      14,
+      17,
+      5,
+      16,
+      3,
+      1,
+      13
+    ],
+    "panelTypes": [
+      "row",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "row",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "row",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "common/prometheus.json",
+    "targetCount": 19,
+    "title": "Prometheus",
+    "uid": "e0b5e43c-3332-4ce3-a680-4919458f7b1d",
+    "variableNames": []
+  },
+  "common/scheduling.json": {
+    "canonicalSha256": "6f7bb33a85c0bc9d8d0bc37e9d0ce28b487e18faa4504702ad851c0c704ba1b8",
+    "datasourceUids": [
+      "-- Grafana --",
+      "__expr__",
+      "prometheus"
+    ],
+    "folder": "Kubernetes",
+    "panelIds": [
+      6,
+      5,
+      16,
+      4,
+      1,
+      10,
+      14,
+      9,
+      2,
+      12,
+      15,
+      13,
+      7
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "common/scheduling.json",
+    "targetCount": 21,
+    "title": "Scheduling",
+    "uid": "abc4098b-10fd-4fc6-8eaa-e302a5a1b573",
+    "variableNames": []
+  },
+  "gpu/cluster-level-metrics.json": {
+    "canonicalSha256": "e5e4af56a24c21c76f9deb89ef09321a25033365de872eb3d76c772e9aa721f9",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "GPU Nodes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "panelTypes": [
+      "gauge",
+      "gauge",
+      "gauge",
+      "gauge",
+      "gauge",
+      "gauge",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "gpu/cluster-level-metrics.json",
+    "targetCount": 14,
+    "title": "Cluster Level Metrics",
+    "uid": "cluster-level-metrics",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "instance_shape"
+    ]
+  },
+  "gpu/command-center.json": {
+    "canonicalSha256": "8faa86d62c2d86f2bd2923867fbeeb9cf63fd49d366ce69bdd193f9df20b6c63",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "GPU Nodes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "panelTypes": [
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "state-timeline",
+      "alertlist",
+      "state-timeline"
+    ],
+    "relativePath": "gpu/command-center.json",
+    "targetCount": 9,
+    "title": "Command Center",
+    "uid": "command-center",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "instance_shape"
+    ]
+  },
+  "gpu/gpu-health-status.json": {
+    "canonicalSha256": "41b99184ef3d3fe4874dcfa9d409bdaec1fc6d5ac43282f939df7b4b0ea39c82",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "${PROMETHEUS_DS}",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "GPU Nodes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      23,
+      7,
+      24,
+      6,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      19,
+      20,
+      21,
+      22
+    ],
+    "panelTypes": [
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "state-timeline",
+      "state-timeline"
+    ],
+    "relativePath": "gpu/gpu-health-status.json",
+    "targetCount": 23,
+    "title": "GPU Health Status",
+    "uid": "gpu-health",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "hostname"
+    ]
+  },
+  "gpu/gpu-metrics.json": {
+    "canonicalSha256": "fbbe0c6c744072f5257e8ea067845e11ea97927173e5d5d7c2428cf00e9b7902",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "${PROMETHEUS_DS}",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "GPU Nodes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      15,
+      16,
+      17
+    ],
+    "panelTypes": [
+      "stat",
+      "gauge",
+      "gauge",
+      "gauge",
+      "stat",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "gpu/gpu-metrics.json",
+    "targetCount": 15,
+    "title": "GPU Metrics",
+    "uid": "gpu-metrics-single",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "instance_shape",
+      "hostname",
+      "oci_name"
+    ]
+  },
+  "gpu/host-metrics.json": {
+    "canonicalSha256": "7289594be1b182c6356113fc072f7b3d15e47ac5983f7587fbd62bd49e227cd0",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "${PROMETHEUS_DS}",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "GPU Nodes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "panelTypes": [
+      "gauge",
+      "gauge",
+      "gauge",
+      "gauge",
+      "gauge",
+      "gauge",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "gpu/host-metrics.json",
+    "targetCount": 11,
+    "title": "Host Metrics",
+    "uid": "host-metrics-single",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "instance_shape",
+      "hostname",
+      "oci_name",
+      "fstype",
+      "interface",
+      "device",
+      "mountpoint"
+    ]
+  },
+  "gpu/variants/gpu-health-status-amd.json": {
+    "canonicalSha256": "99fcd07b3cffc862c419c0009f31c9535f761b9f517a3c0b4c0e67575b08c740",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "${PROMETHEUS_DS}",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "GPU Nodes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      23,
+      24,
+      6,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      19,
+      20,
+      21,
+      22
+    ],
+    "panelTypes": [
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "state-timeline",
+      "state-timeline"
+    ],
+    "relativePath": "gpu/variants/gpu-health-status-amd.json",
+    "targetCount": 22,
+    "title": "GPU Health Status",
+    "uid": "gpu-health",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "hostname"
+    ]
+  },
+  "gpu/variants/gpu-health-status-mixed.json": {
+    "canonicalSha256": "41b99184ef3d3fe4874dcfa9d409bdaec1fc6d5ac43282f939df7b4b0ea39c82",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "${PROMETHEUS_DS}",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "GPU Nodes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      23,
+      7,
+      24,
+      6,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      19,
+      20,
+      21,
+      22
+    ],
+    "panelTypes": [
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "state-timeline",
+      "state-timeline"
+    ],
+    "relativePath": "gpu/variants/gpu-health-status-mixed.json",
+    "targetCount": 23,
+    "title": "GPU Health Status",
+    "uid": "gpu-health",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "hostname"
+    ]
+  },
+  "gpu/variants/gpu-health-status-nvidia.json": {
+    "canonicalSha256": "a9b8672815bac5ad8687be1428708440ed91f63660c91664f91fa7eba4c1d4c9",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "${PROMETHEUS_DS}",
+      "-- Grafana --",
+      "-- Mixed --"
+    ],
+    "folder": "GPU Nodes",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      7,
+      24,
+      6,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      19,
+      20,
+      21,
+      22
+    ],
+    "panelTypes": [
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "stat",
+      "state-timeline",
+      "state-timeline"
+    ],
+    "relativePath": "gpu/variants/gpu-health-status-nvidia.json",
+    "targetCount": 22,
+    "title": "GPU Health Status",
+    "uid": "gpu-health",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "hostname"
+    ]
+  },
+  "oci/oci-block.json": {
+    "canonicalSha256": "6f52e61e7cacaba7af99a82f26bfebde7d1fe9596aa393524dffda854aabf226",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "${PROMETHEUS_DS}",
+      "-- Mixed --"
+    ],
+    "folder": "OCI Metrics",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "oci/oci-block.json",
+    "targetCount": 5,
+    "title": "Block Volumes",
+    "uid": "oci-block",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "hostname",
+      "oci_name"
+    ]
+  },
+  "oci/oci-drg.json": {
+    "canonicalSha256": "b687a99fd0c78d3a70a0c3d451824c72822ed01c3c52c4f215283940e907dcf8",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "-- Mixed --"
+    ],
+    "folder": "OCI Metrics",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "oci/oci-drg.json",
+    "targetCount": 6,
+    "title": "Dynamic Routing Gateway",
+    "uid": "oci-drg",
+    "variableNames": [
+      "PROMETHEUS_DS"
+    ]
+  },
+  "oci/oci-fastconnect.json": {
+    "canonicalSha256": "3d1a5186478e2303f93bb455465967366baac152e8c6c693fee5800fbe0ea0ff",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "-- Mixed --"
+    ],
+    "folder": "OCI Metrics",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "oci/oci-fastconnect.json",
+    "targetCount": 7,
+    "title": "Fast Connect",
+    "uid": "oci-fastconnet",
+    "variableNames": [
+      "PROMETHEUS_DS"
+    ]
+  },
+  "oci/oci-fss.json": {
+    "canonicalSha256": "8318cb194d80bf5f3cca123830e739e85d3b43711d8e6153877bdc494c7aaff6",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "${PROMETHEUS_DS}",
+      "-- Mixed --"
+    ],
+    "folder": "OCI Metrics",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "oci/oci-fss.json",
+    "targetCount": 7,
+    "title": "File Storage Service",
+    "uid": "oci-fss",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "hostname",
+      "oci_name"
+    ]
+  },
+  "oci/oci-igw.json": {
+    "canonicalSha256": "bb6843981efc5c19627c341618c75d21060cc99ef11998710d353a44813fee94",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "-- Mixed --"
+    ],
+    "folder": "OCI Metrics",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "oci/oci-igw.json",
+    "targetCount": 6,
+    "title": "Internet Gateway",
+    "uid": "oci-igw",
+    "variableNames": [
+      "PROMETHEUS_DS"
+    ]
+  },
+  "oci/oci-lustre.json": {
+    "canonicalSha256": "5df5e474f73e5d93b4fe0d80bb32adff1aa5d6e223e6b6714f8b5eda1db63ed2",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "${PROMETHEUS_DS}",
+      "-- Mixed --"
+    ],
+    "folder": "OCI Metrics",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "oci/oci-lustre.json",
+    "targetCount": 6,
+    "title": "Lustre File System",
+    "uid": "oci-lustre",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "hostname",
+      "oci_name"
+    ]
+  },
+  "oci/oci-natgw.json": {
+    "canonicalSha256": "35329dbd9c8039191449b3e0c4c1793ca7a425fcef1b1d268f881dc77e0ae123",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "-- Mixed --"
+    ],
+    "folder": "OCI Metrics",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "oci/oci-natgw.json",
+    "targetCount": 5,
+    "title": "NAT Gateway",
+    "uid": "oci-natgw",
+    "variableNames": [
+      "PROMETHEUS_DS"
+    ]
+  },
+  "oci/oci-sgw.json": {
+    "canonicalSha256": "f2a8891cc03871a03ed1017495bf1c28155da0ed701761f2334cda2757513ae6",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "-- Mixed --"
+    ],
+    "folder": "OCI Metrics",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "oci/oci-sgw.json",
+    "targetCount": 6,
+    "title": "Service Gateway",
+    "uid": "oci-sgw",
+    "variableNames": [
+      "PROMETHEUS_DS"
+    ]
+  },
+  "oci/oci-vcn.json": {
+    "canonicalSha256": "80a963c6ed2110ac6f83fe075f000ccd09a37037cb03fdcc2b834a7b0fa00475",
+    "datasourceUids": [
+      "$PROMETHEUS_DS",
+      "${PROMETHEUS_DS}",
+      "-- Mixed --"
+    ],
+    "folder": "OCI Metrics",
+    "panelIds": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "panelTypes": [
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries",
+      "timeseries"
+    ],
+    "relativePath": "oci/oci-vcn.json",
+    "targetCount": 10,
+    "title": "Virtual Cloud Network",
+    "uid": "oci-vcn",
+    "variableNames": [
+      "PROMETHEUS_DS",
+      "hostname",
+      "oci_name"
+    ]
+  }
+}

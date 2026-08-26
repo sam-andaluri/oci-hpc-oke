@@ -1,0 +1,18 @@
+FROM golang:1.24.5-alpine3.22 AS builder
+
+ARG JSONNET_VERSION=v0.21.0
+ARG JB_VERSION=v0.6.0
+
+RUN CGO_ENABLED=0 go install github.com/google/go-jsonnet/cmd/jsonnet@${JSONNET_VERSION} && \
+    CGO_ENABLED=0 go install github.com/google/go-jsonnet/cmd/jsonnetfmt@${JSONNET_VERSION} && \
+    CGO_ENABLED=0 go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@${JB_VERSION}
+
+FROM alpine:3.22
+
+RUN apk add --no-cache bash git make nodejs
+COPY --from=builder /go/bin/jsonnet /usr/local/bin/jsonnet
+COPY --from=builder /go/bin/jsonnetfmt /usr/local/bin/jsonnetfmt
+COPY --from=builder /go/bin/jb /usr/local/bin/jb
+
+WORKDIR /workspace
+ENTRYPOINT ["make"]

@@ -1,0 +1,44 @@
+name: CI - Grafonnet dashboards
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ci-grafonnet.yml"
+      - "terraform/files/grafana/dashboards/**"
+      - "terraform/files/grafana/jsonnet/**"
+      - "terraform/grafana.tf"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Compile and verify dashboards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version: "1.24.5"
+          cache: false
+
+      - name: Install pinned Jsonnet tools
+        run: |
+          go install github.com/google/go-jsonnet/cmd/jsonnet@v0.21.0
+          go install github.com/google/go-jsonnet/cmd/jsonnetfmt@v0.21.0
+          go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@v0.6.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Restore pinned Grafonnet dependencies
+        working-directory: terraform/files/grafana/jsonnet
+        run: make bootstrap
+
+      - name: Verify generated dashboards
+        working-directory: terraform/files/grafana/jsonnet
+        run: make verify
+
+      - name: Test isolated package
+        working-directory: terraform/files/grafana/jsonnet
+        run: make package-test

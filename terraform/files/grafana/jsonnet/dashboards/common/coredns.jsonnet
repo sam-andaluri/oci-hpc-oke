@@ -1,0 +1,1375 @@
+local dashboard = import '../../lib/dashboard.libsonnet';
+local layout = import '../../lib/layout.libsonnet';
+local panels = import '../../lib/panels.libsonnet';
+local queries = import '../../lib/queries.libsonnet';
+local thresholds = import '../../lib/thresholds.libsonnet';
+local variables = import '../../lib/variables.libsonnet';
+
+dashboard.fromObjects(
+  {
+    annotations: {
+      list: [
+        {
+          builtIn: 1,
+          datasource: {
+            type: 'datasource',
+            uid: 'grafana',
+          },
+          enable: true,
+          hide: true,
+          iconColor: 'rgba(0, 211, 255, 1)',
+          name: 'Annotations & Alerts',
+          type: 'dashboard',
+        },
+      ],
+    },
+    description: 'A dashboard for the CoreDNS DNS server with updated metrics for version 1.7.0+.  Based on the CoreDNS dashboard by buhay.',
+    editable: true,
+    fiscalYearStartMonth: 0,
+    graphTooltip: 0,
+    id: 45,
+    links: [
+      {
+        icon: 'external link',
+        tags: [],
+        targetBlank: true,
+        title: 'CoreDNS.io',
+        type: 'link',
+        url: 'https://coredns.io',
+      },
+    ],
+    preload: false,
+    refresh: '10s',
+    schemaVersion: 40,
+    tags: [
+      'dns',
+      'coredns',
+    ],
+    time: {
+      from: 'now-3h',
+      to: 'now',
+    },
+    timepicker: {
+      refresh_intervals: [
+        '10s',
+        '30s',
+        '1m',
+        '5m',
+        '15m',
+        '30m',
+        '1h',
+        '2h',
+        '1d',
+      ],
+    },
+    timezone: 'utc',
+    title: 'CoreDNS',
+    uid: 'vkQ0UHxik',
+    version: 1,
+    weekStart: '',
+  },
+  [
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'normal',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'pps',
+          },
+          overrides: [],
+        },
+        id: 2,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'desc',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Requests (total)',
+        type: 'timeseries',
+      },
+      layout.grid(8, 7, 0, 0),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'sum(rate(coredns_dns_request_count_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (proto) or\nsum(rate(coredns_dns_requests_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (proto)',
+          format: 'time_series',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}',
+          refId: 'A',
+          step: 60,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'normal',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'pps',
+          },
+          overrides: [],
+        },
+        id: 4,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'desc',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Requests (by qtype)',
+        type: 'timeseries',
+      },
+      layout.grid(8, 7, 8, 0),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'sum(rate(coredns_dns_request_type_count_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (type) or \nsum(rate(coredns_dns_requests_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (type)',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ type }}',
+          refId: 'A',
+          step: 60,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'normal',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'pps',
+          },
+          overrides: [],
+        },
+        id: 6,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'desc',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Requests (by zone)',
+        type: 'timeseries',
+      },
+      layout.grid(8, 7, 16, 0),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'sum(rate(coredns_dns_request_count_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (zone) or\nsum(rate(coredns_dns_requests_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (zone)',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ zone }}',
+          refId: 'A',
+          step: 60,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'none',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'pps',
+          },
+          overrides: [],
+        },
+        id: 8,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'desc',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Requests (DO bit)',
+        type: 'timeseries',
+      },
+      layout.grid(12, 7, 0, 7),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'sum(rate(coredns_dns_request_do_count_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) or\nsum(rate(coredns_dns_do_requests_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m]))',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: 'DO',
+          refId: 'A',
+          step: 40,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'sum(rate(coredns_dns_request_count_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) or\nsum(rate(coredns_dns_requests_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m]))',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: 'total',
+          refId: 'B',
+          step: 40,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'none',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'bytes',
+          },
+          overrides: [
+            {
+              matcher: {
+                id: 'byName',
+                options: 'tcp:90',
+              },
+              properties: [
+                {
+                  id: 'unit',
+                  value: 'short',
+                },
+              ],
+            },
+            {
+              matcher: {
+                id: 'byName',
+                options: 'tcp:99 ',
+              },
+              properties: [
+                {
+                  id: 'unit',
+                  value: 'short',
+                },
+              ],
+            },
+            {
+              matcher: {
+                id: 'byName',
+                options: 'tcp:50',
+              },
+              properties: [
+                {
+                  id: 'unit',
+                  value: 'short',
+                },
+              ],
+            },
+          ],
+        },
+        id: 10,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'none',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Requests (size, udp)',
+        type: 'timeseries',
+      },
+      layout.grid(6, 7, 12, 7),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.99, sum(rate(coredns_dns_request_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="udp"}[5m])) by (le,proto))',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:99 ',
+          refId: 'A',
+          step: 60,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.90, sum(rate(coredns_dns_request_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="udp"}[5m])) by (le,proto))',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:90',
+          refId: 'B',
+          step: 60,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.50, sum(rate(coredns_dns_request_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="udp"}[5m])) by (le,proto))',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:50',
+          refId: 'C',
+          step: 60,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'none',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'bytes',
+          },
+          overrides: [],
+        },
+        id: 12,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'none',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Requests (size,tcp)',
+        type: 'timeseries',
+      },
+      layout.grid(6, 7, 18, 7),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.99, sum(rate(coredns_dns_request_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="tcp"}[5m])) by (le,proto))',
+          format: 'time_series',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:99 ',
+          refId: 'A',
+          step: 60,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.90, sum(rate(coredns_dns_request_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="tcp"}[5m])) by (le,proto))',
+          format: 'time_series',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:90',
+          refId: 'B',
+          step: 60,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.50, sum(rate(coredns_dns_request_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="tcp"}[5m])) by (le,proto))',
+          format: 'time_series',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:50',
+          refId: 'C',
+          step: 60,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'normal',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'pps',
+          },
+          overrides: [],
+        },
+        id: 14,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'desc',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Responses (by rcode)',
+        type: 'timeseries',
+      },
+      layout.grid(12, 7, 0, 14),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'sum(rate(coredns_dns_response_rcode_count_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (rcode) or\nsum(rate(coredns_dns_responses_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (rcode)',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ rcode }}',
+          refId: 'A',
+          step: 40,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'none',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 's',
+          },
+          overrides: [],
+        },
+        id: 32,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'none',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Responses (duration)',
+        type: 'timeseries',
+      },
+      layout.grid(12, 7, 12, 14),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.99, sum(rate(coredns_dns_request_duration_seconds_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (le, job))',
+          format: 'time_series',
+          intervalFactor: 2,
+          legendFormat: '99%',
+          refId: 'A',
+          step: 40,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.90, sum(rate(coredns_dns_request_duration_seconds_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (le))',
+          format: 'time_series',
+          intervalFactor: 2,
+          legendFormat: '90%',
+          refId: 'B',
+          step: 40,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.50, sum(rate(coredns_dns_request_duration_seconds_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (le))',
+          format: 'time_series',
+          intervalFactor: 2,
+          legendFormat: '50%',
+          refId: 'C',
+          step: 40,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'none',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'bytes',
+          },
+          overrides: [
+            {
+              matcher: {
+                id: 'byName',
+                options: 'tcp:50%',
+              },
+              properties: [
+                {
+                  id: 'unit',
+                  value: 'short',
+                },
+              ],
+            },
+            {
+              matcher: {
+                id: 'byName',
+                options: 'tcp:90%',
+              },
+              properties: [
+                {
+                  id: 'unit',
+                  value: 'short',
+                },
+              ],
+            },
+            {
+              matcher: {
+                id: 'byName',
+                options: 'tcp:99%',
+              },
+              properties: [
+                {
+                  id: 'unit',
+                  value: 'short',
+                },
+              ],
+            },
+          ],
+        },
+        id: 18,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'none',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Responses (size, udp)',
+        type: 'timeseries',
+      },
+      layout.grid(12, 7, 0, 21),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.99, sum(rate(coredns_dns_response_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="udp"}[5m])) by (le,proto)) ',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:99%',
+          refId: 'A',
+          step: 40,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.90, sum(rate(coredns_dns_response_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="udp"}[5m])) by (le,proto)) ',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:90%',
+          refId: 'B',
+          step: 40,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.50, sum(rate(coredns_dns_response_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="udp"}[5m])) by (le,proto)) ',
+          hide: false,
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:50%',
+          metric: '',
+          refId: 'C',
+          step: 40,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'none',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'bytes',
+          },
+          overrides: [],
+        },
+        id: 20,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'none',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Responses (size, tcp)',
+        type: 'timeseries',
+      },
+      layout.grid(12, 7, 12, 21),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.99, sum(rate(coredns_dns_response_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="tcp"}[5m])) by (le,proto)) ',
+          format: 'time_series',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:99%',
+          refId: 'A',
+          step: 40,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.90, sum(rate(coredns_dns_response_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="tcp"}[5m])) by (le,proto)) ',
+          format: 'time_series',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:90%',
+          refId: 'B',
+          step: 40,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'histogram_quantile(0.50, sum(rate(coredns_dns_response_size_bytes_bucket{job=~"$job",cluster=~"$cluster",instance=~"$instance",proto="tcp"}[5m])) by (le, proto)) ',
+          format: 'time_series',
+          intervalFactor: 2,
+          legendFormat: '{{ proto }}:50%',
+          metric: '',
+          refId: 'C',
+          step: 40,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'normal',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'decbytes',
+          },
+          overrides: [],
+        },
+        id: 22,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'desc',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Cache (size)',
+        type: 'timeseries',
+      },
+      layout.grid(12, 7, 0, 28),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'sum(coredns_cache_size{job=~"$job",cluster=~"$cluster",instance=~"$instance"}) by (type) or\nsum(coredns_cache_entries{job=~"$job",cluster=~"$cluster",instance=~"$instance"}) by (type)',
+          interval: '1m',
+          intervalFactor: 2,
+          legendFormat: '{{ type }}',
+          refId: 'A',
+          step: 40,
+        }),
+      ],
+    ),
+    panels.fromObject(
+      {
+        datasource: {
+          uid: '$datasource',
+        },
+        fieldConfig: {
+          defaults: {
+            color: {
+              mode: 'palette-classic',
+            },
+            custom: {
+              axisBorderShow: false,
+              axisCenteredZero: false,
+              axisColorMode: 'text',
+              axisLabel: '',
+              axisPlacement: 'auto',
+              barAlignment: 0,
+              barWidthFactor: 0.6,
+              drawStyle: 'line',
+              fillOpacity: 10,
+              gradientMode: 'none',
+              hideFrom: {
+                legend: false,
+                tooltip: false,
+                viz: false,
+              },
+              insertNulls: false,
+              lineInterpolation: 'linear',
+              lineWidth: 2,
+              pointSize: 5,
+              scaleDistribution: {
+                type: 'linear',
+              },
+              showPoints: 'never',
+              spanNulls: true,
+              stacking: {
+                group: 'A',
+                mode: 'normal',
+              },
+              thresholdsStyle: {
+                mode: 'off',
+              },
+            },
+            links: [],
+            mappings: [],
+            min: 0,
+            thresholds: thresholds.standardNull,
+            unit: 'pps',
+          },
+          overrides: [],
+        },
+        id: 24,
+        options: {
+          legend: {
+            calcs: [],
+            displayMode: 'list',
+            placement: 'bottom',
+            showLegend: true,
+          },
+          tooltip: {
+            hideZeros: false,
+            mode: 'multi',
+            sort: 'desc',
+          },
+        },
+        pluginVersion: '11.5.2',
+        title: 'Cache (hitrate)',
+        type: 'timeseries',
+      },
+      layout.grid(12, 7, 12, 28),
+      [
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'sum(rate(coredns_cache_hits_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (type)',
+          hide: false,
+          intervalFactor: 2,
+          legendFormat: 'hits:{{ type }}',
+          refId: 'A',
+          step: 40,
+        }),
+        queries.fromObject({
+          datasource: {
+            uid: '$datasource',
+          },
+          expr: 'sum(rate(coredns_cache_misses_total{job=~"$job",cluster=~"$cluster",instance=~"$instance"}[5m])) by (type)',
+          hide: false,
+          intervalFactor: 2,
+          legendFormat: 'misses',
+          refId: 'B',
+          step: 40,
+        }),
+      ],
+    ),
+  ],
+  {},
+  [
+    variables.fromObject({
+      current: {
+        text: 'Prometheus',
+        value: 'prometheus',
+      },
+      includeAll: false,
+      name: 'datasource',
+      options: [],
+      query: 'prometheus',
+      refresh: 1,
+      regex: '',
+      type: 'datasource',
+    }),
+    variables.fromObject({
+      allValue: '.*',
+      current: {
+        text: 'All',
+        value: '$__all',
+      },
+      datasource: {
+        type: 'prometheus',
+        uid: '$datasource',
+      },
+      definition: 'label_values(coredns_dns_requests_total, cluster)',
+      hide: 2,
+      includeAll: true,
+      label: 'Cluster',
+      name: 'cluster',
+      options: [],
+      query: 'label_values(coredns_dns_requests_total, cluster)',
+      refresh: 2,
+      regex: '',
+      sort: 1,
+      type: 'query',
+    }),
+    variables.fromObject({
+      allValue: '.*',
+      current: {
+        text: 'All',
+        value: '$__all',
+      },
+      datasource: {
+        type: 'prometheus',
+        uid: '${datasource}',
+      },
+      definition: 'label_values(coredns_dns_requests_total{cluster=~"$cluster"},job)',
+      includeAll: true,
+      label: 'Job',
+      name: 'job',
+      options: [],
+      query: {
+        qryType: 1,
+        query: 'label_values(coredns_dns_requests_total{cluster=~"$cluster"},job)',
+        refId: 'PrometheusVariableQueryEditor-VariableQuery',
+      },
+      refresh: 2,
+      regex: '',
+      sort: 1,
+      type: 'query',
+    }),
+    variables.fromObject({
+      allValue: '.*',
+      current: {
+        text: 'All',
+        value: '$__all',
+      },
+      datasource: {
+        type: 'prometheus',
+        uid: '$datasource',
+      },
+      definition: 'label_values(coredns_dns_requests_total{job=~"$job",cluster=~"$cluster"}, instance)',
+      includeAll: true,
+      label: 'Instance',
+      name: 'instance',
+      options: [],
+      query: 'label_values(coredns_dns_requests_total{job=~"$job",cluster=~"$cluster"}, instance)',
+      refresh: 2,
+      regex: '',
+      sort: 3,
+      type: 'query',
+    }),
+  ],
+)

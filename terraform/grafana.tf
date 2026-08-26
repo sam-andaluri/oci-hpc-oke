@@ -23,25 +23,19 @@ locals {
     for f in local.grafana_gpu_dashboard_files :
     f => file(join("/", ["${local.grafana_gpu_dashboard_dir}", f]))
   }
-  grafana_gpu_health_dashboard = jsondecode(local.grafana_gpu_dashboard_sources["gpu-health-status.json"])
-  grafana_gpu_health_panels = [
-    for panel in local.grafana_gpu_health_dashboard.panels : panel
-    if(panel.id != 7 || local.has_nvidia_gpu) && (panel.id != 23 || local.has_amd_gpu)
-  ]
-  grafana_gpu_health_panels_reflowed = [
-    for index, panel in local.grafana_gpu_health_panels :
-    panel.type == "stat" ? merge(panel, {
-      gridPos = merge(panel.gridPos, {
-        x = (index % 8) * 3
-        y = floor(index / 8) * 3
-      })
-    }) : panel
-  ]
+  grafana_gpu_health_variant = (
+    local.has_nvidia_gpu && local.has_amd_gpu ? "mixed" :
+    local.has_nvidia_gpu ? "nvidia" :
+    local.has_amd_gpu ? "amd" : null
+  )
+  grafana_gpu_health_dashboard = local.grafana_gpu_health_variant == null ? null : file(join("/", [
+    local.grafana_gpu_dashboard_dir,
+    "variants",
+    "gpu-health-status-${local.grafana_gpu_health_variant}.json",
+  ]))
   grafana_gpu_dashboards = (var.install_monitoring && var.install_grafana && var.install_grafana_dashboards) ? {
     for f, content in local.grafana_gpu_dashboard_sources :
-    f => f == "gpu-health-status.json" ? jsonencode(merge(local.grafana_gpu_health_dashboard, {
-      panels = local.grafana_gpu_health_panels_reflowed
-    })) : content
+    f => f == "gpu-health-status.json" && local.grafana_gpu_health_dashboard != null ? local.grafana_gpu_health_dashboard : content
   } : {}
   grafana_oci_dashboards = (var.install_monitoring && var.install_grafana && var.install_grafana_dashboards && var.setup_oci_metrics_exporter) ? {
     for f in local.grafana_oci_dashboard_files :
