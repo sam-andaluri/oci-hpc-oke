@@ -15,6 +15,17 @@ locals {
     var.worker_gmc_enabled ? length(local.worker_gmc_gpu_memory_fabric_ids) * var.worker_gmc_scale_target_size : 0,
   ])
 
+  total_gpu_worker_nodes = sum([
+    var.worker_gpu_enabled ? var.worker_gpu_pool_size : 0,
+    var.worker_rdma_enabled ? var.worker_rdma_pool_size : 0,
+    var.worker_gmc_enabled ? length(local.worker_gmc_gpu_memory_fabric_ids) * var.worker_gmc_scale_target_size : 0,
+  ])
+
+  # Prometheus memory grows with the scraped series. About 107 MiB per BM.GPU.B300.8 node was
+  # measured at 208 nodes, so 128 MiB per GPU node leaves room for series churn.
+  prometheus_memory_request_mib = 2048 + 128 * local.total_gpu_worker_nodes + 32 * (local.total_worker_nodes - local.total_gpu_worker_nodes)
+  prometheus_memory_request     = format("%dMi", local.prometheus_memory_request_mib)
+
   deploy_from_operator = alltrue([var.create_bastion, var.create_operator, !var.control_plane_is_public, !var.deploy_to_oke_from_orm])
   deploy_from_local    = alltrue([!local.deploy_from_operator, var.control_plane_is_public, !var.deploy_to_oke_from_orm])
   deploy_from_orm      = alltrue([var.current_user_ocid != null, var.deploy_to_oke_from_orm])
@@ -29,6 +40,7 @@ locals {
         var.install_kueue,
         var.install_oci_hpc_oke_utils,
         var.install_nvidia_dra_driver,
+        var.install_dranet,
         local.configure_amd_device_metrics,
         local.deploy_nccl_rccl_param_configmap,
       ])
@@ -68,13 +80,32 @@ locals {
   rule_type_cidr    = "CIDR_BLOCK"
   rule_type_service = "SERVICE_CIDR_BLOCK"
 
-  vcn_cidr = coalesce(data.oci_core_vcn.oke_vcn.cidr_blocks...)
+  # With a stack-created VCN the CIDR comes from var.vcn_cidrs. With an existing
+  # VCN use its actual first IPv4 CIDR block: one() rejects a VCN with multiple
+  # CIDR blocks and try() would swallow that error and silently fall back to
+  # var.vcn_cidrs below, deriving pods CIDRs that lie outside the real VCN.
+  vcn_cidr = coalesce(
+    try(data.oci_core_vcn.existing_vcn[0].cidr_blocks[0], null),
+    split(",", var.vcn_cidrs)[0]
+  )
+
+  # NSG creation can only be opted out of when bringing an existing VCN; a VCN
+  # created by this stack always gets its NSGs.
+  create_nsgs_effective = anytrue([var.create_vcn, var.create_nsgs])
+  nsg_create_default    = local.create_nsgs_effective ? "auto" : "never"
+
+  # NSG IDs used in Kubernetes LoadBalancer service annotations, normalized to an
+  # empty string so the annotations can be omitted when no NSGs are created.
+  # coalesce() cannot do this: it rejects "" as a fallback along with null.
+  lb_nsg_id_int       = module.oke.int_lb_nsg_id == null ? "" : module.oke.int_lb_nsg_id
+  lb_nsg_id_pub       = module.oke.pub_lb_nsg_id == null ? "" : module.oke.pub_lb_nsg_id
+  lb_nsg_id_preferred = var.preferred_kubernetes_services == "public" ? local.lb_nsg_id_pub : local.lb_nsg_id_int
 
   nsgs = merge(
     {
-      bastion = var.create_bastion ? { create = "auto" } : { create = "never" }
+      bastion = var.create_bastion ? { create = local.nsg_create_default } : { create = "never" }
       operator = merge(
-        var.create_operator ? { create = "auto" } : { create = "never" },
+        var.create_operator ? { create = local.nsg_create_default } : { create = "never" },
         var.create_operator && var.create_lustre ? {
           rules = {
             "Allow ingress from Lustre to OKE Operator" = {
@@ -86,19 +117,55 @@ locals {
           }
         } : {}
       )
-      int_lb  = { create = "auto" }
-      pub_lb  = { create = "auto" }
-      cp      = { create = "auto" }
-      workers = { create = "auto" }
-      pods    = { create = "auto" }
+      int_lb  = { create = local.nsg_create_default }
+      pub_lb  = { create = local.nsg_create_default }
+      cp      = { create = local.nsg_create_default }
+      workers = { create = local.nsg_create_default }
+      pods    = { create = local.nsg_create_default }
     },
-    local.create_fss_effective ? {
+    # Lustre is a custom NSG, so it has to be left out of the map entirely
+    # rather than marked "never": the module reports "n/a" as the ID of a
+    # custom NSG it was asked about but did not create.
+    local.create_fss_effective && local.create_nsgs_effective ? {
       fss = { create = "always" }
     } : {},
-    var.create_lustre ? {
+    var.create_lustre && local.create_nsgs_effective ? {
       lustre = { create = "always", rules = local.default_lustre_nsg_rules }
     } : {}
   )
+
+  # GVA requires a dual-CIDR pods subnet: the first block holds one primary IP per node for
+  # the single VNIC attachment, the second provides the pod IPs. GVA is used whenever the
+  # stack creates the pods subnet - with derived dual CIDRs (cidrsubnet(vcn, 3, 3) +
+  # cidrsubnet(vcn, 1, 1)) or with user-provided pods_sn_cidrs (exactly two comma-separated
+  # blocks, validated in validation.tf with the NPN CNI). On an existing pods subnet
+  # (custom_subnet_ids / pods_sn_id) GVA requires an explicit force_use_gva opt-in; without
+  # it, or with the flannel CNI, worker pools fall back to the legacy max_pods_per_node
+  # configuration (see oke-workers.tf).
+  pods_subnet_stack_created = var.create_vcn || !var.custom_subnet_ids
+  use_gva                   = local.cni_type == "npn" && (local.pods_subnet_stack_created || var.force_use_gva)
+
+  # Dual-CIDR pods subnet for GVA (Generic VNIC Attachments): OCI recommends configuring the
+  # pod subnet with two CIDR blocks when a secondary VNIC allocates more than 32 pod IPs
+  # (ip_count > 32). The first CIDR block is used for the primary IP address of the secondary VNIC,
+  # while the secondary CIDR is used for IPv4 prefix allocation for the pods.
+  pods_ipv4_cidrs_default = [
+    cidrsubnet(local.vcn_cidr, 3, 3),
+    cidrsubnet(local.vcn_cidr, 1, 1)
+  ]
+
+  # The pods subnet IPv4 CIDR blocks when known at plan time: the two user-provided
+  # pods_sn_cidrs blocks, or the stack-derived dual blocks. Empty when the pods subnet is an
+  # existing subnet selected by id (its CIDR blocks are only known to OCI).
+  pods_subnet_ipv4_cidrs = !local.pods_subnet_stack_created ? [] : (
+    var.pods_sn_cidrs != null ? [for c in split(",", var.pods_sn_cidrs) : trimspace(c)] : local.pods_ipv4_cidrs_default
+  )
+
+  # With IPv6, GVA also needs two IPv6 prefixes on the pods subnet, or OCI limits ip_count to 16.
+  # A subnet takes only one prefix per VCN IPv6 block, so the VCN gets a ULA block for the second.
+  # Pods IPv6 CIDRs from subnet_advanced_attrs replace this.
+  pods_ipv6_user_set     = length(setintersection(keys(lookup(var.subnet_advanced_attrs, "pods", {})), ["ipv6_cidr", "ipv6_cidrs"])) > 0
+  pods_ipv6_ula_vcn_cidr = local.cluster_uses_ipv6 && local.use_gva && var.create_vcn && !local.pods_ipv6_user_set ? "fd00:10:140::/56" : null
 
   subnets = merge(
     {
@@ -163,13 +230,16 @@ locals {
         lookup(var.subnet_advanced_attrs, "workers", {})
       )
       pods = merge(
-        { create = "auto" },
-        (var.create_vcn && var.pods_sn_cidr == null) || (!var.create_vcn && !var.custom_subnet_ids) ?
-        { newbits = 1, netnum = 1 } : {},
-        var.create_vcn && var.pods_sn_cidr != null ?
-        { cidr = var.pods_sn_cidr } : {},
-        !var.create_vcn && var.custom_subnet_ids ?
+        # With flannel the module never creates a pods subnet (its own create gate is
+        # cni_type == "npn"); "never" disables the entry outright so the module's subnet
+        # input validation does not require an address spec for it.
+        { create = local.cni_type == "npn" ? "auto" : "never" },
+        local.pods_subnet_stack_created && (var.pods_sn_cidrs != null || local.use_gva) ?
+        { ipv4_cidrs = local.pods_subnet_ipv4_cidrs } : {},
+        !local.pods_subnet_stack_created ?
         { id = var.pods_sn_id, create = "never" } : {},
+        local.pods_ipv6_ula_vcn_cidr != null ?
+        { ipv6_cidrs = ["8, 6", cidrsubnet(local.pods_ipv6_ula_vcn_cidr, 8, 6)] } : {},
         lookup(var.subnet_advanced_attrs, "pods", {})
       )
       bastion_service = merge(
@@ -210,6 +280,10 @@ locals {
   )
 
   cni_type = contains(["npn", "VCN-Native Pod Networking"], var.cni_type) ? "npn" : "flannel"
+
+  # enable_ipv6 is the old dual stack switch.
+  ip_families       = var.enable_ipv6 && var.ip_families == "IPv4" ? ["IPv4", "IPv6"] : split(",", var.ip_families)
+  cluster_uses_ipv6 = contains(local.ip_families, "IPv6")
 
   operator_denseio_ocpus = {
     "VM.DenseIO.E4.Flex" = var.operator_shape_ocpus_denseIO_e4_flex,
@@ -254,7 +328,7 @@ data "oci_core_image" "operator_selected" {
 
 module "oke" {
   source  = "oracle-terraform-modules/oke/oci"
-  version = "5.5.1"
+  version = "5.5.2"
 
   providers = { oci.home = oci.home }
 
@@ -270,7 +344,7 @@ module "oke" {
   allow_worker_internet_access = true
   allow_worker_ssh_access      = true
   assign_dns                   = true
-  bastion_allowed_cidrs        = flatten(tolist([var.bastion_allowed_cidrs]))
+  bastion_allowed_cidrs        = compact([for c in split(",", join(",", flatten([var.bastion_allowed_cidrs]))) : trimspace(c)]) # ORM joins array items with commas
   bastion_await_cloudinit      = false
   bastion_is_public            = var.create_public_subnets ? var.bastion_is_public : false
   bastion_image_type           = local.bastion_image_type
@@ -289,7 +363,7 @@ module "oke" {
   cluster_name                       = local.cluster_name
   cluster_type                       = "enhanced"
   cni_type                           = local.cni_type
-  control_plane_allowed_cidrs        = flatten(tolist([var.control_plane_allowed_cidrs]))
+  control_plane_allowed_cidrs        = compact([for c in split(",", join(",", flatten([var.control_plane_allowed_cidrs]))) : trimspace(c)])
   control_plane_is_public            = var.control_plane_is_public
   create_bastion                     = var.create_bastion
   create_cluster                     = true
@@ -298,11 +372,11 @@ module "oke" {
   create_iam_tag_namespace           = false
   create_operator                    = var.create_operator
   create_vcn                         = var.create_vcn
-  enable_ipv6                        = var.enable_ipv6
+  enable_ipv6                        = local.cluster_uses_ipv6
   kubernetes_version                 = var.kubernetes_version
   load_balancers                     = var.create_public_subnets ? "both" : "internal"
   lockdown_default_seclist           = true
-  max_pods_per_node                  = var.max_pods_per_node
+  oke_ip_families                    = local.ip_families
   operator_image_type                = local.operator_image_type
   operator_image_id                  = local.operator_image_id
   operator_image_os                  = local.operator_image_operating_system
@@ -336,6 +410,7 @@ module "oke" {
   nat_route_table_id                = var.private_subnet_route_table
   ig_route_table_id                 = var.public_subnet_route_table
   vcn_id                            = var.vcn_id
+  vcn_ipv6_ula_cidrs                = local.pods_ipv6_ula_vcn_cidr != null ? [local.pods_ipv6_ula_vcn_cidr] : []
   vcn_name                          = local.vcn_name
   worker_disable_default_cloud_init = true
   worker_is_public                  = false

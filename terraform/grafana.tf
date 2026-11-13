@@ -18,9 +18,12 @@ locals {
   grafana_gpu_dashboard_sources = try(local.grafana_rendered_dashboards.gpu, {})
   grafana_oci_dashboard_sources = try(local.grafana_rendered_dashboards.oci, {})
   grafana_gpu_health_dashboard  = try(jsondecode(local.grafana_gpu_dashboard_sources["gpu-health-status.json"]), { panels = [] })
+  # Show the add-on panel 25 with the GPU Health Monitoring add-on. Without NPD, drop the panels that read NPD conditions or problem_gauge.
   grafana_gpu_health_panels = [
     for panel in local.grafana_gpu_health_dashboard.panels : panel
-    if(panel.id != 7 || local.has_nvidia_gpu) && (panel.id != 23 || local.has_amd_gpu)
+    if(panel.id != 7 || local.has_nvidia_gpu) && (panel.id != 23 || local.has_amd_gpu) &&
+    (panel.id != 25 || local.deploy_gpu_health_monitoring_addon) &&
+    (!contains([1, 2, 3, 4, 5, 6, 7, 14, 15, 16, 18, 21, 22, 23, 24], panel.id) || !local.npd_removed)
   ]
   grafana_gpu_health_panels_reflowed = [
     for index, panel in local.grafana_gpu_health_panels :
@@ -33,14 +36,20 @@ locals {
   ]
   grafana_gpu_dashboards = (var.install_monitoring && var.install_grafana && var.install_grafana_dashboards) ? {
     for f, content in local.grafana_gpu_dashboard_sources :
+    # NPD does not clear its node conditions when it is removed. Without NPD, the Command Center node issues history
+    # shows only the add-on condition.
     f => f == "gpu-health-status.json" ? jsonencode(merge(local.grafana_gpu_health_dashboard, {
       panels = local.grafana_gpu_health_panels_reflowed
-    })) : content
+    })) : f == "command-center.json" && local.npd_removed ? replace(content, "/CpuProfile[|][A-Za-z|]*Rocminfo[|]/", "") : content
+    # The node repairs dashboard reads NodeHealthReports, which exist only with the GPU Health Monitoring add-on.
+    if f != "gpu-node-repairs.json" || local.deploy_gpu_health_monitoring_addon
   } : {}
   grafana_oci_dashboards = (var.install_monitoring && var.install_grafana && var.install_grafana_dashboards && var.setup_oci_metrics_exporter) ? local.grafana_oci_dashboard_sources : {}
 
   grafana_alert_dir   = "${path.module}/files/grafana/alerts"
   grafana_alert_files = fileset(local.grafana_alert_dir, "*.yaml")
+  # Contact points and notification policy. The Helm values provision this file, not the alert sidecar.
+  grafana_alerting_file = "contact-points.yaml"
   grafana_amd_alert_files = [
     "gpu-bad-pages.yaml",
   ]
@@ -51,16 +60,68 @@ locals {
     "gpu-row-remap.yaml",
     "gpu-xid.yaml",
     "nvlink-speed.yaml",
+    "rdma-ovs-mtu.yaml",
     "rdma-vf-counters.yaml",
     "rdma-vf-routes.yaml",
   ]
+  # Deployed only with the GPU Health Monitoring add-on.
+  grafana_gpu_health_alert_files = [
+    "gpu-fault-monitor-stale.yaml",
+    "gpu-health-fault.yaml",
+    "gpu-health-signal.yaml",
+    "gpu-health-unavailable.yaml",
+    "gpu-node-repair-failed.yaml",
+  ]
+  # NPD alert files. Not deployed when NPD is not deployed.
+  grafana_npd_alert_files = [
+    "cpu-profile.yaml",
+    "dcgm-health.yaml",
+    "gpu-bad-pages.yaml",
+    "gpu-bus.yaml",
+    "gpu-count.yaml",
+    "gpu-ecc.yaml",
+    "gpu-fabric-manager.yaml",
+    "gpu-imex.yaml",
+    "gpu-pcie.yaml",
+    "gpu-row-remap.yaml",
+    "gpu-xid.yaml",
+    "node-pcie.yaml",
+    "npd-check-stale.yaml",
+    "npd-check-unknown.yaml",
+    "npd-delete-amd-alerts.yaml",
+    "npd-delete-nvidia-alerts.yaml",
+    "nvlink-speed.yaml",
+    "oca-version.yaml",
+    "rdma-gid-index.yaml",
+    "rdma-link-flapping.yaml",
+    "rdma-link.yaml",
+    "rdma-oca-plugins.yaml",
+    "rdma-ovs-mtu.yaml",
+    "rdma-rttcc.yaml",
+    "rdma-vf-counters.yaml",
+    "rdma-vf-routes.yaml",
+    "rdma-wpa-auth.yaml",
+  ]
+  # Same conditions as the NPD releases. NPD runs only on GPU pools.
+  npd_deployed = alltrue([var.install_node_problem_detector_kube_prometheus_stack, local.has_nvidia_gpu || local.has_amd_gpu, !local.npd_removed])
   grafana_alert_files_filtered = [
     for f in local.grafana_alert_files : f
-    if(!contains(local.grafana_amd_alert_files, f) || local.has_amd_gpu) &&
+    if f != local.grafana_alerting_file &&
+    (!contains(local.grafana_amd_alert_files, f) || local.has_amd_gpu) &&
     (!contains(local.grafana_nvidia_alert_files, f) || local.has_nvidia_gpu) &&
+    (!contains(local.grafana_gpu_health_alert_files, f) || local.deploy_gpu_health_monitoring_addon) &&
+    (f != "kueue-health.yaml" || var.install_kueue) &&
+    (f != "kueue-delete-alerts.yaml" || !var.install_kueue) &&
+    (f != "gpu-health-delete-alerts.yaml" || !local.deploy_gpu_health_monitoring_addon) &&
+    (!contains(local.grafana_npd_alert_files, f) || local.npd_deployed) &&
+    (f != "npd-delete-all-alerts.yaml" || !local.npd_deployed) &&
     (f != "npd-delete-nvidia-alerts.yaml" || (local.has_amd_gpu && !local.has_nvidia_gpu)) &&
     (f != "npd-delete-amd-alerts.yaml" || (local.has_nvidia_gpu && !local.has_amd_gpu))
   ]
+  # Alert files outside the deployed set. The operator path deletes their ConfigMaps, because kubectl apply -k does not.
+  grafana_alert_files_excluded = sort(setsubtract(local.grafana_alert_files, local.grafana_alert_files_filtered))
+  # The contact point file used to be a sidecar ConfigMap. Upgrades must delete it, or it duplicates the Helm-provisioned file.
+  grafana_legacy_alert_configmaps = ["alert-alert-rules"]
   grafana_alerts = (var.install_monitoring && var.install_grafana && var.setup_alerting) ? {
     for f in local.grafana_alert_files_filtered :
     f => file(join("/", [local.grafana_alert_dir, f]))
@@ -74,8 +135,9 @@ data "external" "grafana_dashboards" {
 
   program = ["python3", "${local.grafana_jsonnet_dir}/render_dashboards.py", "--external"]
   query = {
-    cache_dir  = local.grafana_jsonnet_cache_dir
-    output_dir = local.grafana_jsonnet_build_dir
+    cache_dir     = local.grafana_jsonnet_cache_dir
+    output_dir    = local.grafana_jsonnet_build_dir
+    install_kueue = tostring(var.install_kueue && var.install_grafana_dashboards)
   }
 }
 

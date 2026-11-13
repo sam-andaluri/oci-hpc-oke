@@ -23,7 +23,7 @@ The [worker pool definitions](../terraform/oke-workers.tf) pass these modes to `
 | `oke-system` | Managed `node-pool`; creation enabled, size from `worker_ops_pool_size` |
 | `oke-cpu` | Managed `node-pool` when `worker_cpu_enabled` |
 | `oke-gpu` | Managed `node-pool` when `worker_gpu_enabled` |
-| `oke-rdma` | When enabled and the image is valid: `cluster-network` if `worker_rdma_use_cluster_network`, otherwise `node-pool` with `use_compute_cluster = true` |
+| `oke-rdma` | When enabled and the image is valid: `cluster-network` if `worker_rdma_use_cluster_network`, otherwise `node-pool` with `use_compute_cluster = true`. With `worker_rdma_use_existing_compute_cluster`, the pool uses `worker_rdma_compute_cluster_id` instead of a new compute cluster |
 | `oke-gmc` | Self-managed `gpu-memory-cluster` when `worker_gmc_enabled`; fabric IDs and scale configuration are passed to the module |
 
 ## Sequence Diagrams
@@ -290,7 +290,7 @@ sequenceDiagram
         Deploy->>API: Apply oci-rdma Topology
         Deploy->>API: Apply ResourceFlavor for shape and GPU label
         Deploy->>API: Apply ClusterQueue with configured template quotas
-        Deploy->>API: Apply default LocalQueue in selected namespace
+        Deploy->>API: Apply LocalQueue in selected namespace
     end
 ```
 
@@ -327,7 +327,7 @@ sequenceDiagram
 
 The manifest brings together host networking, shape selection, GPU requests, and RDMA settings for the benchmark. For AMD nodes, the RCCL examples provide their own images and parameters.
 
-Sources: [H100 NCCL manifest](../manifests/nccl-tests/kueue/BM.GPU.H100.8.yaml), [MI300X RCCL manifest](../manifests/rccl-tests/kueue/BM.GPU.MI300X.8.yaml), [provider MPI Operator installation](../terraform/via-provider-mpi-operator.tf), [operator MPI Operator installation](../terraform/via-operator-mpi-operator.tf).
+Sources: [H100 NCCL manifest](../manifests/nccl-tests/host-network/kueue/BM.GPU.H100.8.yaml), [MI300X RCCL manifest](../manifests/rccl-tests/host-network/kueue/BM.GPU.MI300X.8.yaml), [provider MPI Operator installation](../terraform/via-provider-mpi-operator.tf), [operator MPI Operator installation](../terraform/via-operator-mpi-operator.tf).
 
 ### 8. Monitoring and Grafana Alert Delivery
 
@@ -374,11 +374,11 @@ sequenceDiagram
 
 The webhook queues incoming alerts in memory and returns HTTP 200 once they're queued. Background workers track alert state in SQLite, apply debounce and reminder rules, and send eligible notifications to ONS. They skip `DatasourceNoData` alerts and log any publishing errors.
 
-Sources: [operator monitoring deployments](../terraform/via-operator-helm-deployments.tf), [provider Prometheus deployment](../terraform/via-provider-kube-prometheus-stack.tf), [monitoring chart values](../terraform/files/kube-prometheus/values.yaml.tftpl), [provider Grafana ConfigMaps](../terraform/via-provider-grafana.tf), [operator Grafana ConfigMaps](../terraform/via-operator-grafana.tf), [Grafana notification policy](../terraform/files/grafana/alerts/alert-rules.yaml), [webhook implementation](../terraform/files/oke-ons-webhook/templates/configmap.yaml), [ONS topic](../terraform/topic.tf).
+Sources: [operator monitoring deployments](../terraform/via-operator-helm-deployments.tf), [provider Prometheus deployment](../terraform/via-provider-kube-prometheus-stack.tf), [monitoring chart values](../terraform/files/kube-prometheus/values.yaml.tftpl), [provider Grafana ConfigMaps](../terraform/via-provider-grafana.tf), [operator Grafana ConfigMaps](../terraform/via-operator-grafana.tf), [Grafana notification policy](../terraform/files/grafana/alerts/contact-points.yaml), [webhook implementation](../terraform/files/oke-ons-webhook/templates/configmap.yaml), [ONS topic](../terraform/topic.tf).
 
 #### 8a. Grafonnet Dashboards - Source, Compilation and Deployment
 
-Grafonnet lets us build dashboards from reusable pieces of Jsonnet code. A dashboard combines shared panel and variable helpers with its own queries, titles, units, thresholds, and layout. The renderer turns those definitions into the JSON Grafana loads from ConfigMaps. There are 21 dashboards here: seven for Kubernetes, five for GPUs, and nine for OCI metrics.
+Grafonnet lets us build dashboards from reusable pieces of Jsonnet code. A dashboard combines shared panel and variable helpers with its own queries, titles, units, thresholds, and layout. The renderer turns those definitions into the JSON Grafana loads from ConfigMaps. There are 22 dashboard sources here: seven for Kubernetes, six for GPUs, and nine for OCI metrics.
 
 ```mermaid
 sequenceDiagram
@@ -403,7 +403,7 @@ sequenceDiagram
     Render->>Render: Replace rendered output directory after successful compilation
     Render-->>TF: Return JSON strings by category and source hash
     TF->>TF: Select enabled dashboard categories
-    TF->>TF: Filter and reflow GPU Health Status panels for configured GPU vendors
+    TF->>TF: Filter and reflow GPU Health Status panels for GPU vendors, add-on and NPD settings
     alt Local or ORM provider path
         TF->>API: Create or update dashboard-name ConfigMaps from generated strings
     else Operator path through bastion SSH
@@ -424,10 +424,10 @@ Turning on `install_monitoring` and `install_grafana` enables the renderer. To p
 | Source category | Dashboard count | Folder annotation | Additional selection |
 | --- | --- | --- | --- |
 | `dashboards/common` | 7 | `Kubernetes` | Shared publication conditions above |
-| `dashboards/gpu` | 5 | `GPU Nodes` | `has_amd_gpu || has_nvidia_gpu` |
+| `dashboards/gpu` | 6 | `GPU Nodes` | `has_amd_gpu || has_nvidia_gpu`; GPU Node Repairs also requires the GPU Health Monitoring add-on |
 | `dashboards/oci` | 9 | `OCI Metrics` | `setup_oci_metrics_exporter` |
 
-Terraform adjusts GPU Health Status to match the configured GPUs: panel `7` is for NVIDIA and panel `23` is for AMD. It then arranges the remaining stat panels in rows of eight. Once the dashboard is loaded, Grafana queries the live metrics as shown in diagram 8b.
+Terraform adjusts GPU Health Status to match the configured GPUs and health monitoring: panel `7` is for NVIDIA, panel `23` is for AMD, and panel `25` is included only with the GPU Health Monitoring add-on. When NPD is removed (`gpu_health_monitoring_remove_npd=true` with full add-on coverage), Terraform also removes the panels that read NPD data. It then arranges the remaining stat panels in rows of eight. Once the dashboard is loaded, Grafana queries the live metrics as shown in diagram 8b.
 
 The older JSON files under `files/grafana/dashboards` are kept as a reference for development checks. Running `make verify` checks formatting, compiles the dashboards, and compares IDs, queries, variables, layout, and GPU vendor variants against that reference. Terraform deploys the freshly generated JSON.
 
@@ -457,8 +457,8 @@ sequenceDiagram
     Grafana->>Prom: Resolve instance_shape from node_uname_info
     Prom-->>Grafana: Available shape values
     User->>Grafana: Select instance shape
-    Grafana->>Prom: Resolve hostname and oci_name from up metrics filtered by shape
-    Prom-->>Grafana: Available node and display-name values
+    Grafana->>Prom: Resolve hostname from node_uname_info on GPU shapes, and oci_name from up metrics
+    Prom-->>Grafana: Available node and display-name values. Node has no All option and opens on the first GPU node
     User->>Grafana: Select node, display name and time range
     par Independent metrics collection
         Prom->>Exporters: Scrape configured endpoints

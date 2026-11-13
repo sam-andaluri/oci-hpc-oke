@@ -31,12 +31,15 @@ locals {
     var.worker_rdma_image_use_uri && !anytrue([for prefix in local.allowed_image_uri_prefixes : startswith(local.image_uri_values.worker_rdma, prefix)]),
   ])
 
-  # Pods subnet capacity validation
-  pods_required_ops  = var.worker_ops_pool_size * local.worker_ops_max_pods_per_node
-  pods_required_cpu  = var.worker_cpu_enabled ? var.worker_cpu_pool_size * local.worker_cpu_max_pods_per_node : 0
-  pods_required_gpu  = var.worker_gpu_enabled ? var.worker_gpu_pool_size * var.worker_gpu_max_pods_per_node : 0
-  pods_required_rdma = var.worker_rdma_enabled ? var.worker_rdma_pool_size * var.worker_rdma_max_pods_per_node : 0
-  pods_required_gmc  = var.worker_gmc_enabled ? length(local.worker_gmc_gpu_memory_fabric_ids) * var.worker_gmc_scale_target_size * var.worker_gmc_max_pods_per_node : 0
+  # Pods subnet capacity validation.
+  # With GVA each node consumes its pool's gva_ip_count pod IPs from the two pod cidrs.
+  # One IP per VNIC attachment (the stack uses one VNIC attachment per node) and gva_ip_count from the second CIDR of the pod subnet.
+  # Without GVA the legacy max_pods_per_node applies (see the worker_*_pods_per_node locals in oke-workers.tf).
+  pods_required_ops  = var.worker_ops_pool_size * local.worker_ops_pods_per_node
+  pods_required_cpu  = var.worker_cpu_enabled ? var.worker_cpu_pool_size * local.worker_cpu_pods_per_node : 0
+  pods_required_gpu  = var.worker_gpu_enabled ? var.worker_gpu_pool_size * local.worker_gpu_pods_per_node : 0
+  pods_required_rdma = var.worker_rdma_enabled ? var.worker_rdma_pool_size * local.worker_rdma_pods_per_node : 0
+  pods_required_gmc  = var.worker_gmc_enabled ? length(local.worker_gmc_gpu_memory_fabric_ids) * var.worker_gmc_scale_target_size * local.worker_gmc_pods_per_node : 0
   total_pods_required = (
     local.pods_required_ops +
     local.pods_required_cpu +
@@ -45,12 +48,39 @@ locals {
     local.pods_required_gmc
   )
 
-  # Calculate pods subnet capacity (IPs available minus 3 reserved IPs)
-  vcn_prefix_length     = tonumber(split("/", var.vcn_cidrs)[1])
-  pods_subnet_prefix    = var.pods_sn_cidr != null ? tonumber(split("/", var.pods_sn_cidr)[1]) : local.vcn_prefix_length + 1
-  pods_subnet_capacity  = pow(2, 32 - local.pods_subnet_prefix) - 3
-  is_vcn_native_cni     = contains(["npn", "VCN-Native Pod Networking"], var.cni_type)
-  invalid_pods_capacity = local.is_vcn_native_cni && local.total_pods_required > local.pods_subnet_capacity
+  # User-provided pods CIDR blocks (pods_sn_cidrs, comma-separated). With the NPN CNI the
+  # pods subnet uses GVA, which requires exactly two CIDR blocks: the first holds one
+  # primary IP per node for its single VNIC attachment, the second provides the pod IPs.
+  # With flannel a single block is fine (the pods subnet carries no pod IPs), so this check
+  # is NPN-only.
+  is_vcn_native_cni = contains(["npn", "VCN-Native Pod Networking"], var.cni_type)
+  # NOTE: Terraform's && / || do not short-circuit - every operand is evaluated even
+  # when an earlier one is false. Every operand below must therefore be total: no
+  # indexing (the two-blocks-distinct check uses distinct() instead of [0] != [1])
+  # and no arithmetic on possibly-null capacities (the gva_* locals use lazy
+  # conditional expressions), or Terraform 1.5.x (the CI version) errors the whole
+  # plan instead of producing the validation message.
+  invalid_pods_sn_cidrs = local.is_vcn_native_cni && var.pods_sn_cidrs != null && local.pods_subnet_stack_created && !(
+    length(local.pods_subnet_ipv4_cidrs) == 2 &&
+    length(distinct(local.pods_subnet_ipv4_cidrs)) == 2 &&
+    alltrue([for c in local.pods_subnet_ipv4_cidrs : can(cidrhost(c, 0))])
+  )
+
+  # Usable IP capacities of the pods subnet CIDR blocks (3 addresses reserved per block).
+  # With GVA, pod IPs are allocated only from the second block, and each node's single VNIC
+  # attachment consumes one primary IP from the first block. Capacities are null (checks
+  # skipped) when the blocks are unknown (existing pods subnet) or the user-provided blocks
+  # are malformed (rejected separately by validate_pods_sn_cidrs).
+  pods_cidr_block_prefixes     = [for c in local.pods_subnet_ipv4_cidrs : try(tonumber(split("/", c)[1]), null)]
+  gva_capacity_known           = length(local.pods_subnet_ipv4_cidrs) == 2 && alltrue([for p in local.pods_cidr_block_prefixes : p != null])
+  gva_pods_ip_capacity         = local.gva_capacity_known ? pow(2, 32 - local.pods_cidr_block_prefixes[1]) - 3 : null
+  gva_vnic_primary_ip_capacity = local.gva_capacity_known ? pow(2, 32 - local.pods_cidr_block_prefixes[0]) - 3 : null
+  invalid_pods_capacity = local.is_vcn_native_cni && local.use_gva && (
+    local.gva_pods_ip_capacity == null ? false : local.total_pods_required > local.gva_pods_ip_capacity
+  )
+  invalid_gva_vnic_primary_capacity = local.use_gva && (
+    local.gva_vnic_primary_ip_capacity == null ? false : local.total_worker_nodes > local.gva_vnic_primary_ip_capacity
+  )
 
   # FSS PV cannot be created when all deploy paths are inactive (private endpoint, no operator, no ORM)
   fss_pv_unreachable = alltrue([
@@ -58,6 +88,14 @@ locals {
     !local.deploy_from_local,
     !local.deploy_from_orm,
     !local.deploy_from_operator,
+  ])
+
+  # The worker-node SSH ingress rule for the OCI Bastion Service is added to the
+  # workers NSG, which does not exist when NSG creation is disabled.
+  invalid_bastion_service_worker_ssh = alltrue([
+    var.create_oci_bastion_service,
+    var.bastion_service_allow_worker_ssh,
+    !local.create_nsgs_effective,
   ])
 
   invalid_slinky_deploy_path = alltrue([
@@ -196,15 +234,35 @@ locals {
   # Check if the ssh_public_key has comment
   ssh_public_key_has_comment = can(regex("\\S+\\s+\\S+\\s+\\S+\\s?", var.ssh_public_key))
 
-  invalid_gpu_operator_without_nfd     = var.deploy_nvidia_gpu_operator && !var.deploy_node_feature_discovery
+  invalid_gpu_operator_without_nfd     = local.deploy_nvidia_gpu_operator_addon && !var.deploy_node_feature_discovery
   invalid_network_operator_without_nfd = var.deploy_nvidia_network_operator && !var.deploy_node_feature_discovery
   invalid_nvidia_dra_without_nfd       = var.install_nvidia_dra_driver && var.worker_gmc_enabled && !var.deploy_node_feature_discovery
   invalid_amd_gpu_operator_without_nfd = local.deploy_amd_gpu_operator_addon && !var.deploy_node_feature_discovery && !var.amd_gpu_operator_skip_nfd_dependency_check
+
+  # Dranet has no IPv6 support yet, so it needs a single-stack IPv4 cluster.
+  # GB200.4 uses native InfiniBand and is the exception.
+  invalid_dranet_ip_stack = var.install_dranet && local.cluster_uses_ipv6 && !(var.worker_gmc_enabled && var.worker_gmc_shape == "BM.GPU.GB200.4")
+  # Dranet needs shared RDMA netns mode and the Network Operator needs exclusive mode.
+  invalid_dranet_with_network_operator = var.install_dranet && var.deploy_nvidia_network_operator
+  # OKE needs public subnets for IPv6, and IPv6 egress goes through the internet gateway.
+  invalid_ipv6_without_public_subnets = local.cluster_uses_ipv6 && var.create_vcn && !var.create_public_subnets
+  # GVA with IPv6 needs two IPv6 prefixes on the pods subnet. The stack adds the second one only in a VCN it creates.
+  invalid_ipv6_gva_existing_vcn = local.cluster_uses_ipv6 && local.use_gva && !var.create_vcn && !var.custom_subnet_ids && !local.pods_ipv6_user_set
+  # Fail instead of keeping NPD silently when the user asks to remove it but the add-on cannot check every GPU pool.
+  invalid_gpu_health_npd_removal = alltrue([
+    var.install_monitoring, var.install_node_problem_detector_kube_prometheus_stack, local.has_nvidia_gpu || local.has_amd_gpu,
+    var.deploy_gpu_health_monitoring, var.gpu_health_monitoring_remove_npd, !local.npd_removed,
+  ])
 }
 
 data "oci_core_image" "worker_rdma" {
   count    = coalesce(var.worker_rdma_image_custom_id, var.worker_rdma_image_platform_id, "none") != "none" ? 1 : 0
   image_id = coalesce(var.worker_rdma_image_custom_id, var.worker_rdma_image_platform_id, "none")
+}
+
+data "oci_core_compute_cluster" "worker_rdma" {
+  count              = var.worker_rdma_enabled && !var.worker_rdma_use_cluster_network && var.worker_rdma_use_existing_compute_cluster && var.worker_rdma_compute_cluster_id != "" ? 1 : 0
+  compute_cluster_id = var.worker_rdma_compute_cluster_id
 }
 
 resource "null_resource" "validate_bastion_networking" {
@@ -263,6 +321,22 @@ resource "null_resource" "validate_worker_rdma_image" {
   }
 }
 
+resource "null_resource" "validate_worker_rdma_compute_cluster" {
+  count = var.worker_rdma_enabled && !var.worker_rdma_use_cluster_network && var.worker_rdma_use_existing_compute_cluster ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = var.worker_rdma_compute_cluster_id != ""
+      error_message = "worker_rdma_use_existing_compute_cluster=true requires worker_rdma_compute_cluster_id."
+    }
+    # The module uses only the trailing AD number of worker_rdma_ad, so compare that part.
+    precondition {
+      condition     = var.worker_rdma_compute_cluster_id == "" || try(substr(data.oci_core_compute_cluster.worker_rdma[0].availability_domain, -1, 1) == substr(var.worker_rdma_ad, -1, 1), false)
+      error_message = "The compute cluster ${var.worker_rdma_compute_cluster_id} is in ${try(data.oci_core_compute_cluster.worker_rdma[0].availability_domain, "unknown")}, but worker_rdma_ad is ${var.worker_rdma_ad}. Use the same availability domain."
+    }
+  }
+}
+
 resource "null_resource" "validate_image_uri" {
   count = anytrue([var.bastion_image_use_uri, var.operator_image_use_uri, var.worker_ops_image_use_uri, var.worker_cpu_image_use_uri, var.worker_gpu_image_use_uri, var.worker_rdma_image_use_uri]) ? 1 : 0
 
@@ -311,6 +385,27 @@ resource "null_resource" "validate_grace_blackwell_shape" {
   }
 }
 
+resource "null_resource" "validate_pods_sn_cidrs" {
+  count = local.invalid_pods_sn_cidrs ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "echo 'Error: pods_sn_cidrs must contain two comma-separated CIDR blocks when using the NPN CNI' && exit 1"
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !local.invalid_pods_sn_cidrs
+      error_message = <<-EOT
+        With the NPN CNI the pods subnet uses GVA, which requires exactly two comma-separated
+        CIDR blocks: the first holds the secondary VNIC primary IP of each node, the second
+        provides the pod IPs. Got '${var.pods_sn_cidrs}'. Example: 10.0.96.0/19,10.0.128.0/17.
+        Alternatively use the flannel CNI or leave pods_sn_cidrs unset to derive the dual CIDR
+        blocks from the VCN CIDR.
+      EOT
+    }
+  }
+}
+
 resource "null_resource" "validate_pods_capacity" {
   count = local.invalid_pods_capacity ? 1 : 0
 
@@ -322,14 +417,34 @@ resource "null_resource" "validate_pods_capacity" {
     precondition {
       condition     = !local.invalid_pods_capacity
       error_message = <<-EOT
-        Total required pod IPs (${local.total_pods_required}) exceeds pods subnet capacity (${local.pods_subnet_capacity}).
+        Total required pod IPs (${local.total_pods_required}) exceeds pods subnet capacity (${local.gva_pods_ip_capacity}).
+        With GVA, pod IPs are allocated only from the second CIDR block of the dual-CIDR pods
+        subnet; the first block holds the secondary VNIC primary IPs.
         Breakdown:
-          - oke-system: ${local.pods_required_ops} (${var.worker_ops_pool_size} nodes × ${var.worker_ops_max_pods_per_node} pods)
-          - oke-cpu: ${local.pods_required_cpu} (${var.worker_cpu_enabled ? var.worker_cpu_pool_size : 0} nodes × ${var.worker_cpu_max_pods_per_node} pods)
-          - oke-gpu: ${local.pods_required_gpu} (${var.worker_gpu_enabled ? var.worker_gpu_pool_size : 0} nodes × ${var.worker_gpu_max_pods_per_node} pods)
-          - oke-rdma: ${local.pods_required_rdma} (${var.worker_rdma_enabled ? var.worker_rdma_pool_size : 0} nodes × ${var.worker_rdma_max_pods_per_node} pods)
-          - oke-gmc: ${local.pods_required_gmc} (${var.worker_gmc_enabled ? length(local.worker_gmc_gpu_memory_fabric_ids) * var.worker_gmc_scale_target_size : 0} nodes × ${var.worker_gmc_max_pods_per_node} pods)
-        Consider increasing the pods subnet size or reducing max_pods_per_node/pool_size values.
+          - oke-system: ${local.pods_required_ops} (${var.worker_ops_pool_size} nodes × ${local.worker_ops_pods_per_node} pod IPs/node)
+          - oke-cpu: ${local.pods_required_cpu} (${var.worker_cpu_enabled ? var.worker_cpu_pool_size : 0} nodes × ${local.worker_cpu_pods_per_node} pod IPs/node)
+          - oke-gpu: ${local.pods_required_gpu} (${var.worker_gpu_enabled ? var.worker_gpu_pool_size : 0} nodes × ${local.worker_gpu_pods_per_node} pod IPs/node)
+          - oke-rdma: ${local.pods_required_rdma} (${var.worker_rdma_enabled ? var.worker_rdma_pool_size : 0} nodes × ${local.worker_rdma_pods_per_node} pod IPs/node)
+          - oke-gmc: ${local.pods_required_gmc} (${var.worker_gmc_enabled ? length(local.worker_gmc_gpu_memory_fabric_ids) * var.worker_gmc_scale_target_size : 0} nodes × ${local.worker_gmc_pods_per_node} pod IPs/node)
+        Consider larger pods CIDR blocks (the second block provides the pod IPs), or reducing the per-node pod IPs (gva_ip_count) or pool sizes.
+      EOT
+    }
+  }
+}
+
+resource "null_resource" "validate_gva_vnic_primary_ip_capacity" {
+  count = local.invalid_gva_vnic_primary_capacity ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "echo 'Error: Total worker nodes exceeds secondary VNIC primary IP capacity' && exit 1"
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !local.invalid_gva_vnic_primary_capacity
+      error_message = <<-EOT
+        Total worker nodes (${local.total_worker_nodes}) exceeds the capacity of the first CIDR block of the dual-CIDR pods subnet (${local.gva_vnic_primary_ip_capacity} IPs available for the VNIC attachment primary IP of each node).
+        Consider enlarging the first pods CIDR block (or the VCN CIDR when the blocks are derived) or reducing pool sizes.
       EOT
     }
   }
@@ -346,6 +461,21 @@ resource "null_resource" "warn_fss_pv_unreachable" {
     precondition {
       condition     = !local.fss_pv_unreachable
       error_message = "create_fss=true but the Kubernetes API server is unreachable from this context (private endpoint, no operator, no ORM private endpoint). The FSS PersistentVolume will not be created. To resolve: enable the operator (create_operator=true with create_bastion=true), use a public control plane endpoint, or enable deploy_to_oke_from_orm=true when deploying via ORM."
+    }
+  }
+}
+
+resource "null_resource" "validate_bastion_service_worker_ssh" {
+  count = local.invalid_bastion_service_worker_ssh ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "echo 'Error: bastion_service_allow_worker_ssh=true requires the workers network security group' && exit 1"
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !local.invalid_bastion_service_worker_ssh
+      error_message = "bastion_service_allow_worker_ssh=true adds an SSH ingress rule to the workers network security group, which is not created when `create_nsgs=false`. Please set `create_nsgs=true` or set `bastion_service_allow_worker_ssh=false` and allow SSH from the bastion service subnet with your own rules."
     }
   }
 }
@@ -541,6 +671,50 @@ resource "null_resource" "validate_nvidia_dra_requires_nfd" {
   }
 }
 
+resource "null_resource" "validate_dranet_ip_stack" {
+  count = local.invalid_dranet_ip_stack ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = !local.invalid_dranet_ip_stack
+      error_message = "Dranet (preview) supports single-stack IPv4 clusters only, or a GPU Memory Cluster pool with the BM.GPU.GB200.4 shape. Please set `ip_families=IPv4` and `enable_ipv6=false`, or set `install_dranet=false`."
+    }
+  }
+}
+
+resource "null_resource" "validate_ipv6_public_subnets" {
+  count = local.invalid_ipv6_without_public_subnets ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = !local.invalid_ipv6_without_public_subnets
+      error_message = "Dual stack and IPv6 clusters need public subnets and an internet gateway. Please set `create_public_subnets=true`, or set `ip_families=IPv4` and `enable_ipv6=false`."
+    }
+  }
+}
+
+resource "null_resource" "validate_ipv6_gva_existing_vcn" {
+  count = local.invalid_ipv6_gva_existing_vcn ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = !local.invalid_ipv6_gva_existing_vcn
+      error_message = "Dual stack and IPv6 clusters with VCN-Native Pod Networking need two IPv6 prefixes on the pods subnet, and the stack adds the second one only in a VCN that it creates. Please set `create_vcn=true`, or set `ip_families=IPv4` and `enable_ipv6=false`."
+    }
+  }
+}
+
+resource "null_resource" "validate_dranet_with_network_operator" {
+  count = local.invalid_dranet_with_network_operator ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = !local.invalid_dranet_with_network_operator
+      error_message = "Dranet (preview) needs the shared RDMA netns mode, and the NVIDIA Network Operator needs the exclusive mode, so they cannot be enabled together. Please set `install_dranet=false` or `deploy_nvidia_network_operator=false`."
+    }
+  }
+}
+
 resource "null_resource" "validate_amd_gpu_operator_requires_nfd" {
   count = local.invalid_amd_gpu_operator_without_nfd ? 1 : 0
 
@@ -559,6 +733,17 @@ resource "null_resource" "validate_amd_gpu_operator_kubernetes_version" {
     precondition {
       condition     = !local.invalid_amd_gpu_operator_kubernetes_version
       error_message = "AMD GPU Operator addon requires Kubernetes 1.34 or later. Please upgrade `kubernetes_version` or set `deploy_amd_gpu_operator=false` to keep the AmdGpuPlugin addon."
+    }
+  }
+}
+
+resource "null_resource" "validate_gpu_health_npd_removal" {
+  count = local.invalid_gpu_health_npd_removal ? 1 : 0
+
+  lifecycle {
+    precondition {
+      condition     = !local.invalid_gpu_health_npd_removal
+      error_message = "Removing Node Problem Detector needs the GPU Health Monitoring add-on on every GPU pool: managed node pools with supported shapes (no cluster network pool and no GPU memory cluster pool), and the NVIDIA GPU Operator for NVIDIA pools. Please set `gpu_health_monitoring_remove_npd=false` or change the GPU pools."
     }
   }
 }

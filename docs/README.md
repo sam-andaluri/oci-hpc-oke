@@ -24,16 +24,18 @@ Engine (OKE). For deployment and project overview, see the
 
 ## Running GPU and RDMA workloads
 
-- [Using RDMA Network Interfaces in Manifests](./using-rdma-network-interfaces-in-manifests.md): Manifest sections needed to use the RDMA interfaces in pods with `hostNetwork` or SR-IOV virtual functions.
+- [Using RDMA Network Interfaces in Manifests](./using-rdma-network-interfaces-in-manifests.md): Manifest sections needed to use the RDMA interfaces in pods with `hostNetwork`, SR-IOV virtual functions, or Dranet.
 - [Running PyTorch Jobs on OKE Using Host Network with RDMA](./running-pytorch-jobs-on-oke-using-hostnetwork-with-rdma.md): Run PyTorch distributed jobs over the host network with RDMA.
 - [Using RDMA Network Locality When Running Workloads on OKE](./using-rdma-network-locality-when-running-workloads-on-oke.md): Schedule workloads using RDMA network topology and locality.
 - [Using Dynamic Resource Allocation (DRA) for Multi-Node NVLink](./using-dynamic-resource-allocation-for-multi-node-nvlink-imex.md): Use DRA for multi-node NVLink (IMEX).
+- [Using Dranet for RDMA Network Interfaces (Preview)](./using-dranet.md): Install Dranet and give pods IPvlan children of the RDMA NICs.
+- [Installing Dranet Manually on OKE (Preview)](./installing-dranet-manually.md): Install Dranet with Helm on an OKE cluster that the stack did not create.
 
 ## NCCL and RCCL
 
 - [Recommended NCCL/RCCL Parameters by Shape](./recommended-nccl-rccl-parameters-by-shape.md): Recommended NCCL/RCCL tuning parameters per GPU shape.
 - [Using the NCCL/RCCL Parameters ConfigMap in Job Manifests](./using-nccl-rccl-parameters-configmap.md): Consume the auto-generated parameters ConfigMap from job manifests.
-- [Running NCCL and RCCL Tests with Kueue and MPI Operator](./running-nccl-rccl-tests-with-kueue.md): Run NCCL/RCCL bandwidth tests with Kueue and MPI Operator.
+- [Running NCCL and RCCL Tests](./running-nccl-rccl-tests.md): Run NCCL/RCCL bandwidth tests with Kueue and MPI Operator, using host network, SR-IOV virtual functions, or Dranet.
 
 ## Slurm
 
@@ -43,7 +45,10 @@ Engine (OKE). For deployment and project overview, see the
 
 ## Health checks, benchmarks, and monitoring
 
+- [Monitoring Kueue Workloads](./monitoring-kueue-workloads.md): Queue and admission metrics, workload-to-host resource views, and links to GPU and host dashboards.
+
 - [Running Active Health Checks for GPU Nodes (Preview)](./running-active-health-checks.md): Run active health checks against GPU nodes.
+- [GPU Health Monitoring with the OKE Add-on](./gpu-health-monitoring-with-the-oke-add-on.md): GPU faults, node health reports, repairs, metrics, and alerts from the OKE GPU Health Monitoring add-on.
 - [Running GPU & RDMA Health Checks with Node Problem Detector](./running-gpu-rdma-healthchecks-with-node-problem-detector.md): Continuous GPU and RDMA health checks via Node Problem Detector.
 - [Running ib_write_bw Tests Between Nodes](./running-ib-write-bw-test.md): Run ib_write_bw RDMA bandwidth tests between nodes.
 - [Manual Deployment: Prometheus & Grafana Stack](./deploying-monitoring-stack-manually.md): Manually deploy the Prometheus and Grafana monitoring stack with dashboards and alerts.

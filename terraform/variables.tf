@@ -62,7 +62,26 @@ variable "ssh_public_key" {
 
 # Network
 variable "create_vcn" { default = true }
-variable "enable_ipv6" { default = false }
+variable "create_nsgs" {
+  type        = bool
+  default     = true
+  description = "Create network security groups (NSGs) for the cluster components. Only honored when create_vcn = false; a created VCN always gets its NSGs. When disabled, no NSGs (including the FSS and Lustre NSGs) are created and the bring-your-own subnets must already permit the required traffic."
+}
+variable "enable_ipv6" {
+  type        = bool
+  default     = false
+  description = "Deprecated. Use ip_families. When true and ip_families is IPv4, the cluster is IPv4/IPv6 dual stack."
+}
+variable "ip_families" {
+  type        = string
+  default     = "IPv4"
+  description = "IP families of the cluster. IPv4 is single stack IPv4. IPv4,IPv6 is dual stack. IPv6 is single stack IPv6, which is in limited availability and is not available in every region. Dual stack and IPv6 make the control plane, worker and pod subnets public. Existing subnets must be public and dual stack. With VCN-Native Pod Networking, an existing pods subnet needs two IPv6 prefixes. Changing this value replaces the cluster. A VCN that the stack created does not change from IPv4 to dual stack, so use a new stack for that change."
+
+  validation {
+    condition     = contains(["IPv4", "IPv4,IPv6", "IPv6"], var.ip_families)
+    error_message = "ip_families must be IPv4, IPv4,IPv6 or IPv6."
+  }
+}
 
 variable "vcn_compartment_ocid" {
   default = null
@@ -85,7 +104,11 @@ variable "int_lb_sn_cidr" { default = null }
 variable "pub_lb_sn_cidr" { default = null }
 variable "cp_sn_cidr" { default = null }
 variable "workers_sn_cidr" { default = null }
-variable "pods_sn_cidr" { default = null }
+variable "pods_sn_cidrs" {
+  default     = null
+  description = "CIDR blocks for the pods subnet, comma-separated. With the NPN CNI exactly two CIDR blocks are required: the first holds the secondary VNIC primary IP of each node, the second provides the pod IPs. With flannel a single CIDR block is used. If not provided, the blocks are derived from the VCN CIDR."
+  type        = string
+}
 variable "fss_sn_cidr" { default = null }
 variable "lustre_sn_cidr" { default = null }
 variable "bastion_sn_id" { default = null }
@@ -189,6 +212,21 @@ variable "bastion_user" {
     error_message = "bastion_user must be 'auto' or a valid Linux username."
   }
 }
+variable "bastion_boot_volume_backup" {
+  default     = false
+  description = "Assign an Oracle-defined backup policy to the bastion boot volume."
+  type        = bool
+}
+variable "bastion_boot_volume_backup_policy" {
+  default     = "bronze"
+  description = "Oracle-defined backup policy for the bastion boot volume: bronze, silver or gold."
+  type        = string
+
+  validation {
+    condition     = contains(["bronze", "silver", "gold"], lower(var.bastion_boot_volume_backup_policy))
+    error_message = "bastion_boot_volume_backup_policy must be bronze, silver or gold."
+  }
+}
 
 # Bastion Service
 variable "create_oci_bastion_service" {
@@ -282,6 +320,21 @@ variable "operator_user" {
     error_message = "operator_user must be 'auto' or a valid Linux username."
   }
 }
+variable "operator_boot_volume_backup" {
+  default     = false
+  description = "Assign an Oracle-defined backup policy to the operator boot volume."
+  type        = bool
+}
+variable "operator_boot_volume_backup_policy" {
+  default     = "bronze"
+  description = "Oracle-defined backup policy for the operator boot volume: bronze, silver or gold."
+  type        = string
+
+  validation {
+    condition     = contains(["bronze", "silver", "gold"], lower(var.operator_boot_volume_backup_policy))
+    error_message = "operator_boot_volume_backup_policy must be bronze, silver or gold."
+  }
+}
 
 # STORAGE
 variable "create_fss" { default = true }
@@ -352,9 +405,21 @@ variable "install_nvidia_dra_driver" {
 }
 
 variable "nvidia_dra_driver_chart_version" {
-  default     = "0.4.0"
+  default     = "0.5.1"
   type        = string
   description = "NVIDIA DRA driver Helm chart version."
+}
+
+variable "install_dranet" {
+  default     = false
+  type        = bool
+  description = "Preview. Install Dranet, the Kubernetes DRA network driver, and set the RDMA subsystem to shared network namespace mode on the worker nodes. Requires a single-stack IPv4 cluster, or a BM.GPU.GB200.4 GPU Memory Cluster pool. Cannot be combined with deploy_nvidia_network_operator."
+}
+
+variable "dranet_chart_version" {
+  default     = "v1.5.0"
+  type        = string
+  description = "Dranet Helm chart version."
 }
 
 variable "monitoring_namespace" {
@@ -363,7 +428,7 @@ variable "monitoring_namespace" {
 }
 
 variable "node_problem_detector_chart_version" {
-  default = "2.4.1"
+  default = "2.4.2"
   type    = string
 }
 
@@ -381,17 +446,17 @@ variable "node_problem_detector_nvidia_non_rdma_shapes" {
 }
 
 variable "prometheus_stack_chart_version" {
-  default = "87.2.1"
+  default = "93.0.0"
   type    = string
 }
 
 variable "cert_manager_chart_version" {
-  default = "v1.20.2"
+  default = "v1.21.3"
   type    = string
 }
 
 variable "ingress_chart_version" {
-  default = "0.6.0"
+  default = "0.9.0"
   type    = string
 }
 
@@ -437,11 +502,16 @@ variable "monitoring_advanced_options" {
 
 # OKE Cluster Setup
 variable "cluster_name" { default = "oke-gpu-quickstart" }
-variable "kubernetes_version" { default = "v1.36.1" }
+variable "kubernetes_version" { default = "v1.36.4" }
 variable "control_plane_allowed_cidrs" { default = ["0.0.0.0/0"] }
 variable "cni_type" {
   default = "npn"
   type    = string
+}
+variable "force_use_gva" {
+  default     = false
+  description = "Force GVA (Generic VNIC Attachment) secondary VNICs on all worker pools when using an existing pods subnet (custom_subnet_ids). The target subnet must support GVA (NPN CNI, and per OCI guidance two CIDR blocks when ip_count > 32). Ignored when the stack creates the pods subnet (GVA is already the default) or with the flannel CNI."
+  type        = bool
 }
 variable "control_plane_is_public" {
   type        = bool
@@ -450,7 +520,7 @@ variable "control_plane_is_public" {
 }
 variable "max_pods_per_node" {
   default     = 110
-  description = "The default maximum number of pods to deploy per node when unspecified on a pool. Absolute maximum is 110. Ignored when when cni_type != 'npn'."
+  description = "The default maximum number of pods to deploy per node when unspecified on a pool. Absolute maximum is 110. Used when cni_type is NPN and GVA is not active; ignored with the flannel CNI or when GVA is active. Each worker pool's max-pods setting is rounded down to the closest power of two for its GVA allocation."
   type        = number
 }
 variable "services_cidr" {
@@ -486,7 +556,7 @@ variable "deploy_node_feature_discovery" {
 variable "deploy_nvidia_gpu_operator" {
   type        = bool
   default     = true
-  description = "Deploy the NvidiaGpuOperator OKE addon."
+  description = "Deploy the NvidiaGpuOperator OKE addon for enabled NVIDIA worker pools."
 }
 
 variable "nvidia_gpu_operator_advanced_options" {
@@ -497,7 +567,7 @@ variable "nvidia_gpu_operator_advanced_options" {
 
 variable "nvidia_gpu_operator_addon_version" {
   type        = string
-  default     = "v25.10.1"
+  default     = "v26.3.3"
   description = "Version of the NvidiaGpuOperator OKE addon."
 }
 
@@ -618,6 +688,30 @@ variable "amd_gpu_operator_configuration" {
   }
 }
 
+variable "deploy_gpu_health_monitoring" {
+  type        = bool
+  default     = true
+  description = "Deploy the GpuHealthMonitoring OKE addon for enabled GPU worker pools."
+}
+
+variable "gpu_health_monitoring_addon_version" {
+  type        = string
+  default     = "automatic"
+  description = "Version of the GpuHealthMonitoring OKE addon. Set to \"automatic\" to let OKE update the addon, or set a version (for example v1.1.0) to pin it."
+}
+
+variable "gpu_health_monitoring_remove_npd" {
+  type        = bool
+  default     = false
+  description = "Remove Node Problem Detector after verifying that every GPU node reports GpuHealthMonitoringConfigured=True and GpuHealthMonitoringUnavailable=False. Requires add-on coverage for every GPU pool."
+}
+
+variable "gpu_health_monitoring_node_repair_dry_run" {
+  type        = bool
+  default     = true
+  description = "Run the GPU node repairs of the GpuHealthMonitoring addon as a dry run. A dry run shows the proposed repair in the NodeHealthReport, and does not cordon, drain, reboot, stop or terminate the node. Set to false to let the addon repair faulty GPU nodes."
+}
+
 variable "deploy_nvidia_network_operator" {
   type        = bool
   default     = false
@@ -692,7 +786,7 @@ variable "worker_ops_pool_size" { default = 3 }
 variable "worker_ops_shape" { default = "VM.Standard.E5.Flex" }
 variable "worker_ops_ocpus" { default = 4 }
 variable "worker_ops_memory" { default = 16 }
-variable "worker_ops_boot_volume_size" { default = 128 }
+variable "worker_ops_boot_volume_size" { default = 256 }
 variable "worker_ops_image_type" { default = "Custom" }
 variable "worker_ops_image_custom_id" { default = "" }
 variable "worker_ops_image_custom_uri" { default = "" }
@@ -708,8 +802,12 @@ variable "worker_ops_image_use_uri" {
 }
 variable "worker_ops_max_pods_per_node" {
   default     = 110
-  description = "Maximum number of pods per node for the system worker pool. Max is 110."
+  description = "Maximum number of pods per node for the system worker pool. Max is 110 with legacy pod networking. When GVA is active, the value is rounded down to the closest power of two for the GVA allocation."
   type        = number
+  validation {
+    condition     = var.worker_ops_max_pods_per_node >= 1 && var.worker_ops_max_pods_per_node <= 110
+    error_message = "worker_ops_max_pods_per_node must be between 1 and 110."
+  }
 }
 variable "worker_ops_kubernetes_version" {
   default     = null
@@ -717,7 +815,7 @@ variable "worker_ops_kubernetes_version" {
   type        = string
 }
 variable "worker_ops_node_cycling_enabled" {
-  default     = false
+  default     = true
   description = "Enable node cycling for the system worker pool."
   type        = bool
 }
@@ -774,8 +872,12 @@ variable "worker_cpu_image_platform_id" {
 }
 variable "worker_cpu_max_pods_per_node" {
   default     = 110
-  description = "Maximum number of pods per node for the CPU worker pool. Max is 110."
+  description = "Maximum number of pods per node for the CPU worker pool. Max is 110 with legacy pod networking. When GVA is active, the value is rounded down to the closest power of two for the GVA allocation."
   type        = number
+  validation {
+    condition     = var.worker_cpu_max_pods_per_node >= 1 && var.worker_cpu_max_pods_per_node <= 110
+    error_message = "worker_cpu_max_pods_per_node must be between 1 and 110."
+  }
 }
 variable "worker_cpu_kubernetes_version" {
   default     = null
@@ -783,7 +885,7 @@ variable "worker_cpu_kubernetes_version" {
   type        = string
 }
 variable "worker_cpu_node_cycling_enabled" {
-  default     = false
+  default     = true
   description = "Enable node cycling for the CPU worker pool."
   type        = bool
 }
@@ -830,8 +932,12 @@ variable "worker_gpu_image_platform_id" {
 }
 variable "worker_gpu_max_pods_per_node" {
   default     = 64
-  description = "Maximum number of pods per node for the GPU worker pool. Max is 110."
+  description = "Maximum number of pods per node for the GPU worker pool. Max is 110 with legacy pod networking. When GVA is active, the value is rounded down to the closest power of two for the GVA allocation."
   type        = number
+  validation {
+    condition     = var.worker_gpu_max_pods_per_node >= 1 && var.worker_gpu_max_pods_per_node <= 110
+    error_message = "worker_gpu_max_pods_per_node must be between 1 and 110."
+  }
 }
 variable "worker_gpu_kubernetes_version" {
   default     = null
@@ -887,8 +993,12 @@ variable "worker_rdma_image_use_uri" {
 }
 variable "worker_rdma_max_pods_per_node" {
   default     = 64
-  description = "Maximum number of pods per node for the RDMA worker pool. Max is 110."
+  description = "Maximum number of pods per node for the RDMA worker pool. Max is 110 with legacy pod networking. When GVA is active, the value is rounded down to the closest power of two for the GVA allocation."
   type        = number
+  validation {
+    condition     = var.worker_rdma_max_pods_per_node >= 1 && var.worker_rdma_max_pods_per_node <= 110
+    error_message = "worker_rdma_max_pods_per_node must be between 1 and 110."
+  }
 }
 variable "worker_rdma_kubernetes_version" {
   default     = null
@@ -899,6 +1009,16 @@ variable "worker_rdma_use_cluster_network" { default = false }
 variable "worker_rdma_host_group_id" {
   default     = ""
   description = "OCID of the existing host group for the GPU with RDMA worker pool."
+  type        = string
+}
+variable "worker_rdma_use_existing_compute_cluster" {
+  default     = false
+  description = "Place the GPU with RDMA worker pool in an existing compute cluster instead of creating a new one. Applies only when worker_rdma_use_cluster_network is false. Changing this on an existing stack replaces all nodes in the pool."
+  type        = bool
+}
+variable "worker_rdma_compute_cluster_id" {
+  default     = ""
+  description = "OCID of the existing compute cluster for the GPU with RDMA worker pool. It must be in the same availability domain as the pool. With create_policies, it must be in the deployment compartment or a child compartment. The user that runs Terraform needs read access to the compute cluster. Changing this on an existing stack replaces all nodes in the pool."
   type        = string
 }
 
@@ -935,8 +1055,12 @@ variable "worker_gmc_boot_volume_vpus_per_gb" {
 }
 variable "worker_gmc_max_pods_per_node" {
   default     = 64
-  description = "Maximum number of pods per node for the GMC worker pool. Max is 110."
+  description = "Maximum number of pods per node for the GMC worker pool. Max is 110 with legacy pod networking. When GVA is active, the value is rounded down to the closest power of two for the GVA allocation."
   type        = number
+  validation {
+    condition     = var.worker_gmc_max_pods_per_node >= 1 && var.worker_gmc_max_pods_per_node <= 110
+    error_message = "worker_gmc_max_pods_per_node must be between 1 and 110."
+  }
 }
 variable "worker_gmc_kubernetes_version" {
   default     = null
@@ -984,11 +1108,11 @@ variable "worker_gmc_scale_is_downsize_enabled" {
 variable "install_kueue" {
   default     = true
   type        = bool
-  description = "Install Kueue and create Topology Aware Scheduling resources (Topology, ResourceFlavor, ClusterQueue, LocalQueue)."
+  description = "Install Kueue and create Topology Aware Scheduling resources (Topology, ResourceFlavor, ClusterQueue, LocalQueue). The TAS resources need a GPU RDMA or GMC pool and the RDMA labeler."
 }
 
 variable "kueue_chart_version" {
-  default = "0.18.2"
+  default = "0.20.5"
   type    = string
 }
 

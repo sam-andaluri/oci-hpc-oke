@@ -94,6 +94,9 @@ locals {
     var.worker_gmc_enabled ? [
       "Allow dynamic-group %v to manage compute-clusters in compartment id %v",
       "Allow dynamic-group %v to manage compute-gpu-memory-clusters in compartment id %v"
+    ] : [],
+    local.deploy_gpu_health_monitoring_addon ? [
+      "Allow dynamic-group %v to read instance-agent-plugins in compartment id %v"
     ] : []
   ))
 
@@ -115,10 +118,15 @@ locals {
   var.compartment_ocid, local.wris)
   wris_ca_statement = format("Allow any-user to manage all-resources in compartment id %v where all %v",
   var.compartment_ocid, local.wris_ca)
+  # Lets node repair act on Compute maintenance events of the GPU nodes.
+  maintenance_events_statement = one(module.oke[*].cluster_id) == null || !local.deploy_gpu_health_monitoring_addon ? null : format(
+    "Allow any-user to use instance-maintenance-events in compartment id %v where all {request.principal.type = 'cluster', request.principal.id = '%v'}",
+    var.compartment_ocid, one(module.oke[*].cluster_id)
+  )
 
   policy_statements = compact(concat(
     [for s in local.rule_templates : format(s, local.policy_group_ref, var.compartment_ocid)],
-    [local.wris_statement, local.wris_ca_statement]
+    [local.wris_statement, local.wris_ca_statement, local.maintenance_events_statement]
   ))
 }
 

@@ -7,6 +7,7 @@ resource "helm_release" "prometheus" {
   # admission hook Jobs fail with "no endpoints available for service
   # kueue-webhook-service" while Kueue is still starting.
   depends_on = [
+    terraform_data.validate_prometheus_memory_request,
     helm_release.ingress,
     time_sleep.wait_for_ingress_lb,
     helm_release.kueue,
@@ -18,9 +19,19 @@ resource "helm_release" "prometheus" {
   repository = "https://prometheus-community.github.io/helm-charts"
   version    = var.prometheus_stack_chart_version
   values = [templatefile("${path.module}/files/kube-prometheus/values.yaml.tftpl", {
-    install_grafana               = var.install_grafana
-    preferred_kubernetes_services = var.preferred_kubernetes_services
-    setup_alerting                = var.setup_alerting
+    install_grafana                   = var.install_grafana
+    preferred_kubernetes_services     = var.preferred_kubernetes_services
+    setup_alerting                    = var.setup_alerting
+    grafana_alerting_config           = var.setup_alerting ? yamldecode(file("${local.grafana_alert_dir}/${local.grafana_alerting_file}")) : null
+    prometheus_memory_request         = local.prometheus_memory_request
+    gpu_health_monitoring             = local.deploy_gpu_health_monitoring_addon
+    gpu_health_monitoring_shape_regex = local.gpu_health_monitoring_shape_regex
+    npd_removed                       = local.npd_removed
+    npd_amd_conditions                = local.npd_amd_conditions
+    npd_nvidia_conditions             = local.npd_nvidia_conditions
+    npd_amd_condition_count           = length(split("|", local.npd_amd_conditions))
+    npd_nvidia_condition_count        = length(split("|", local.npd_nvidia_conditions))
+    install_kueue                     = var.install_kueue
   })]
   create_namespace  = true
   recreate_pods     = false
@@ -58,44 +69,45 @@ resource "helm_release" "prometheus" {
       name  = "grafana.ingress.tls[0].secretName",
       value = "grafana-tls"
     }
-    ] : [
-    {
-      name  = "grafana.service.type",
-      value = "LoadBalancer"
-    },
-    {
-      name  = "grafana.service.annotations.oci\\.oraclecloud\\.com\\/load-balancer-type",
-      value = "lb"
-    },
-    {
-      name  = "grafana.service.annotations.service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-internal",
-      type  = "string"
-      value = "true"
-    },
-    {
-      name  = "grafana.service.annotations.service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-shape",
-      value = "flexible"
-    },
-    {
-      name  = "grafana.service.annotations.service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-shape-flex-min",
-      type  = "string"
-      value = "100"
-    },
-    {
-      name  = "grafana.service.annotations.service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-shape-flex-max",
-      type  = "string"
-      value = "100"
-    },
-    {
-      name  = "grafana.service.annotations.service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-security-list-management-mode",
-      type  = "string"
-      value = "None"
-    },
-    {
-      name  = "grafana.service.annotations.oci\\.oraclecloud\\.com\\/oci-network-security-groups"
-      value = "${module.oke.int_lb_nsg_id}"
-    }
-  ]) : []
+    ] : concat([
+      {
+        name  = "grafana.service.type",
+        value = "LoadBalancer"
+      },
+      {
+        name  = "grafana.service.annotations.oci\\.oraclecloud\\.com\\/load-balancer-type",
+        value = "lb"
+      },
+      {
+        name  = "grafana.service.annotations.service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-internal",
+        type  = "string"
+        value = "true"
+      },
+      {
+        name  = "grafana.service.annotations.service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-shape",
+        value = "flexible"
+      },
+      {
+        name  = "grafana.service.annotations.service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-shape-flex-min",
+        type  = "string"
+        value = "100"
+      },
+      {
+        name  = "grafana.service.annotations.service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-shape-flex-max",
+        type  = "string"
+        value = "100"
+      },
+      {
+        name  = "grafana.service.annotations.service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-security-list-management-mode",
+        type  = "string"
+        value = "None"
+      },
+      ], local.create_nsgs_effective ? [
+      {
+        name  = "grafana.service.annotations.oci\\.oraclecloud\\.com\\/oci-network-security-groups"
+        value = local.lb_nsg_id_int
+      }
+  ] : [])) : []
   set_sensitive = var.install_grafana ? [
     {
       name  = "grafana.adminPassword"

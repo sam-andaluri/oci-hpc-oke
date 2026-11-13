@@ -109,19 +109,54 @@ var validationTestCases = []validationTestCase{
 		// making all three deploy paths inactive and triggering fss_pv_unreachable.
 		name: "FSSPVUnreachable",
 		vars: map[string]interface{}{
-			"create_fss":            true,
+			"create_fss":             true,
 			"deploy_to_oke_from_orm": true,
 		},
 		expectedError: "fss_pv_unreachable",
 	},
 	{
+		// Dual-CIDR pods subnet: pod IPs come only from the second block
+		// (/30 = 4 IPs - 3 reserved = 1 usable). Default ops pool: 1 node × 64
+		// GVA pod IPs = 64 required > 1 capacity. The first block is large enough
+		// for the single VNIC attachment primary IP of 1 node.
 		name: "PodCapacityExceeded",
 		vars: map[string]interface{}{
-			// /30 subnet = 4 IPs - 3 reserved = 1 usable
-			// default ops pool: 1 node × 31 pods = 31 required > 1 capacity
-			"pods_sn_cidr": "10.240.0.0/30",
+			"pods_sn_cidrs": "10.240.0.0/24,10.240.1.0/30",
 		},
 		expectedError: "Total required pod IPs",
+	},
+	{
+		// create_nsgs=false is only honored with an existing VCN, and it removes
+		// the workers NSG that bastion_service_allow_worker_ssh needs for its
+		// SSH ingress rule.
+		name: "BastionServiceWorkerSSHWithoutNSGs",
+		vars: map[string]interface{}{
+			"create_vcn":                       false,
+			"create_nsgs":                      false,
+			"create_oci_bastion_service":       true,
+			"bastion_service_allow_worker_ssh": true,
+		},
+		expectedError: "bastion_service_allow_worker_ssh=true",
+	},
+	{
+		// With the NPN CNI (default) the pods subnet uses GVA, which requires
+		// exactly two CIDR blocks; a single block must be rejected.
+		name: "PodsSubnetRequiresTwoCidrs",
+		vars: map[string]interface{}{
+			"pods_sn_cidrs": "10.240.0.0/30",
+		},
+		expectedError: "requires exactly two",
+	},
+	{
+		// GVA VNIC attachment capacity: each node consumes one primary IP from
+		// the FIRST CIDR block (/30 = 4 IPs - 3 reserved = 1 usable); 2 nodes > 1.
+		// The second block is large enough for 2 × 64 pod IPs.
+		name: "GvaVnicPrimaryCapacityExceeded",
+		vars: map[string]interface{}{
+			"pods_sn_cidrs":        "10.240.0.0/30,10.240.1.0/24",
+			"worker_ops_pool_size": 2,
+		},
+		expectedError: "Total worker nodes",
 	},
 	{
 		name: "InvalidSlinkyTopologyBlockSizes",
@@ -148,6 +183,77 @@ var validationTestCases = []validationTestCase{
 			"kubernetes_version": "v1.33.1",
 		},
 		expectedError: "AMD GPU Operator addon requires Kubernetes 1.34",
+	},
+	{
+		name: "DranetRequiresSingleStackIPv4",
+		vars: map[string]interface{}{
+			"install_dranet": true,
+			"enable_ipv6":    true,
+		},
+		expectedError: "Dranet (preview) supports single-stack IPv4 clusters only",
+	},
+	{
+		name: "DranetRequiresSingleStackIPv4WithIPv6Families",
+		vars: map[string]interface{}{
+			"install_dranet": true,
+			"ip_families":    "IPv6",
+		},
+		expectedError: "Dranet (preview) supports single-stack IPv4 clusters only",
+	},
+	{
+		name: "IPv6RequiresPublicSubnets",
+		vars: map[string]interface{}{
+			"ip_families":           "IPv4,IPv6",
+			"create_public_subnets": false,
+		},
+		expectedError: "Dual stack and IPv6 clusters need public subnets",
+	},
+	{
+		// The stack adds the second pods IPv6 prefix for GVA only in a VCN it creates.
+		name: "IPv6GvaRequiresStackVcn",
+		vars: map[string]interface{}{
+			"ip_families": "IPv4,IPv6",
+			"create_vcn":  false,
+		},
+		expectedError: "clusters with VCN-Native Pod Networking need two IPv6",
+	},
+	{
+		name: "InvalidIPFamilies",
+		vars: map[string]interface{}{
+			"ip_families": "IPv6,IPv4",
+		},
+		expectedError: "ip_families must be IPv4, IPv4,IPv6 or IPv6",
+	},
+	{
+		name: "DranetConflictsWithNetworkOperator",
+		vars: map[string]interface{}{
+			"install_dranet":                 true,
+			"deploy_nvidia_network_operator": true,
+		},
+		expectedError: "Dranet (preview) needs the shared RDMA netns mode",
+	},
+	{
+		name: "NpdRemovalRequiresSupportedGpuShape",
+		vars: map[string]interface{}{
+			"install_monitoring": true,
+			"install_node_problem_detector_kube_prometheus_stack": true,
+			"worker_gpu_enabled":               true,
+			"worker_gpu_shape":                 "VM.GPU.A10.1",
+			"gpu_health_monitoring_remove_npd": true,
+		},
+		expectedError: "Removing Node Problem Detector needs the GPU Health Monitoring add-on",
+	},
+	{
+		name: "NpdRemovalRequiresNvidiaGpuOperator",
+		vars: map[string]interface{}{
+			"install_monitoring": true,
+			"install_node_problem_detector_kube_prometheus_stack": true,
+			"worker_gpu_enabled":               true,
+			"worker_gpu_shape":                 "BM.GPU.H100.8",
+			"deploy_nvidia_gpu_operator":       false,
+			"gpu_health_monitoring_remove_npd": true,
+		},
+		expectedError: "Removing Node Problem Detector needs the GPU Health Monitoring add-on",
 	},
 }
 

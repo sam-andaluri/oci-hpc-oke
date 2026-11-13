@@ -3,8 +3,11 @@
 
 resource "helm_release" "ingress" {
   count = alltrue([var.install_monitoring, var.install_node_problem_detector_kube_prometheus_stack, var.install_grafana, var.preferred_kubernetes_services == "public", local.deploy_from_local || local.deploy_from_orm]) ? 1 : 0
+  # Kueue registers a cluster-wide Deployment webhook. Without this order, it rejects the contour Deployment.
   depends_on = [
-    time_sleep.wait_for_ingress_lb_termination
+    time_sleep.wait_for_ingress_lb_termination,
+    helm_release.kueue,
+    kubectl_manifest.kueue_webhook_probe,
   ]
   namespace  = "projectcontour"
   name       = "contour"
@@ -17,7 +20,7 @@ resource "helm_release" "ingress" {
       {
         min_bw    = 10,
         max_bw    = 100,
-        lb_nsg_id = var.preferred_kubernetes_services == "public" ? module.oke.pub_lb_nsg_id : module.oke.int_lb_nsg_id
+        lb_nsg_id = local.lb_nsg_id_preferred
         state_id  = local.state_id
       }
     )

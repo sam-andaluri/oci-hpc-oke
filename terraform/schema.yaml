@@ -32,11 +32,15 @@ variableGroups:
       - oke_ons_webhook_chart_version
       - oci_metrics_exporter_chart_version
       - cert_manager_chart_version
+      # GPU Health Monitoring add-on (ORM always uses automatic updates)
+      - gpu_health_monitoring_addon_version
       # Kueue
       - kueue_chart_version
       - kueue_local_queue_default_namespace
       # NVIDIA DRA Driver
       - nvidia_dra_driver_chart_version
+      # Dranet
+      - dranet_chart_version
       # OCI HPC OKE Utils
       - install_image_prepuller
       - install_hostexec
@@ -89,6 +93,7 @@ variableGroups:
       - create_vcn
       - vcn_compartment_ocid
       - vcn_id
+      - create_nsgs
       - vcn_name
       - vcn_cidrs
       - create_public_subnets
@@ -103,7 +108,8 @@ variableGroups:
       - workers_sn_cidr
       - fss_sn_cidr
       - lustre_sn_cidr
-      - pods_sn_cidr
+      - pods_sn_cidrs
+      - force_use_gva
       - bastion_sn_id
       - bastion_service_sn_id
       - operator_sn_id
@@ -135,6 +141,8 @@ variableGroups:
       - bastion_image_compartment
       - bastion_image_id
       - bastion_user
+      - bastion_boot_volume_backup
+      - bastion_boot_volume_backup_policy
       - create_operator
       - operator_shape_config
       - operator_shape_name
@@ -152,6 +160,8 @@ variableGroups:
       - operator_image_id
       - operator_allow_image_drift
       - operator_user
+      - operator_boot_volume_backup
+      - operator_boot_volume_backup_policy
       - create_oci_bastion_service
       - bastion_service_allowed_cidrs
       - bastion_service_max_session_ttl
@@ -163,6 +173,7 @@ variableGroups:
       - cluster_name
       - kubernetes_version
       - cni_type
+      - ip_families
       - services_cidr
       - control_plane_is_public
       - control_plane_allowed_cidrs
@@ -188,6 +199,9 @@ variableGroups:
       - amd_gpu_operator_addon_version
       - amd_gpu_operator_skip_nfd_dependency_check
       - amd_gpu_operator_configuration
+      - deploy_gpu_health_monitoring
+      - gpu_health_monitoring_remove_npd
+      - gpu_health_monitoring_node_repair_dry_run
       - setup_credential_provider_for_ocir
       - install_oci_hpc_oke_utils
       - install_kueue
@@ -272,6 +286,8 @@ variableGroups:
       - worker_rdma_use_cluster_network
       - worker_rdma_use_host_group
       - worker_rdma_host_group_id
+      - worker_rdma_use_existing_compute_cluster
+      - worker_rdma_compute_cluster_id
 
   - title: "Workers: GPU Memory Cluster"
     variables:
@@ -327,6 +343,7 @@ variableGroups:
     variables:
       - deploy_nvidia_network_operator
       - nvidia_network_operator_addon_version
+      - install_dranet
       - install_slinky
       - slinky_advanced_options
       - hostname_override
@@ -504,6 +521,13 @@ variables:
     dependsOn:
       compartmentId: ${vcn_compartment_ocid}
     visible: { not: [create_vcn] }
+  create_nsgs:
+    title: Create network security groups
+    description: "Create the network security groups (NSGs) for the cluster components. Uncheck to manage network security yourself: no NSGs are created (including the File Storage and Lustre NSGs) and the existing subnets must already permit the traffic the cluster needs."
+    type: boolean
+    default: true
+    required: false
+    visible: { not: [create_vcn] }
   networking_advanced_options:
     title: Subnets advanced settings
     type: boolean
@@ -643,7 +667,7 @@ variables:
     title: Subnet CIDR for the bastion subnet
     description: CIDR subnet to use for the bastion subnet. If not provided a dynamic subnet will be created if required.
     type: string
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)$"
     required: false
     visible:
       or:
@@ -658,7 +682,7 @@ variables:
     title: Subnet CIDR for the bastion service subnet
     description: CIDR subnet to use for the bastion service subnet. If not provided a dynamic subnet will be created if required.
     type: string
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)$"
     required: false
     visible:
       or:
@@ -673,7 +697,7 @@ variables:
     title: Subnet CIDR for the operator subnet
     description: CIDR subnet to use for the operator subnet. If not provided a dynamic subnet will be created if required.
     type: string
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)$"
     required: false
     visible:
       or:
@@ -688,7 +712,7 @@ variables:
     title: Subnet CIDR for the internal load balancer subnet
     description: CIDR subnet to use for the internal load balancer subnet. If not provided a dynamic subnet will be created if required.
     type: string
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)$"
     required: false
     visible:
       or:
@@ -703,7 +727,7 @@ variables:
     title: Subnet CIDR for the public load balancer subnet
     description: CIDR subnet to use for the public load balancer subnet. If not provided a dynamic subnet will be created if required.
     type: string
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)$"
     required: false
     visible:
       or:
@@ -718,7 +742,7 @@ variables:
     title: Subnet CIDR for the OKE control plane subnet
     description: CIDR subnet to use for the OKE control plane subnet. If not provided a dynamic subnet will be created if required.
     type: string
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)$"
     required: false
     visible:
       or:
@@ -733,7 +757,7 @@ variables:
     title: Subnet CIDR for the workers subnet
     description: CIDR subnet to use for the workers subnet. If not provided a dynamic subnet will be created if required.
     type: string
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)$"
     required: false
     visible:
       or:
@@ -744,11 +768,11 @@ variables:
       - and:
         - create_vcn
         - networking_advanced_options
-  pods_sn_cidr:
-    title: Subnet CIDR for the pods subnet
-    description: CIDR subnet to use for the pods subnet. If not provided a dynamic subnet will be created if required.
+  pods_sn_cidrs:
+    title: Subnet CIDRs for the pods subnet
+    description: Comma-separated CIDR blocks for the pods subnet. With the VCN-Native Pod Networking CNI exactly two CIDR blocks are required - the first holds the VNIC attachment primary IP of each node, the second provides the pod IPs. If not provided the blocks are derived from the VCN CIDR.
     type: string
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)(?:\\s*,\\s*(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30))?$"
     required: false
     visible:
       or:
@@ -759,11 +783,17 @@ variables:
       - and:
         - create_vcn
         - networking_advanced_options
+  force_use_gva:
+    title: Force GVA for existing pods subnets
+    description: Force Generic VNIC Attachments when using an existing pods subnet. Requires the NPN CNI and a pods subnet compatible with GVA.
+    type: boolean
+    default: false
+    required: false
   fss_sn_cidr:
     title: Subnet CIDR for the FSS subnet
     description: CIDR subnet to use for the FSS subnet. If not provided a dynamic subnet will be created if required.
     type: string
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)$"
     required: false
     visible:
       or:
@@ -778,7 +808,7 @@ variables:
     title: Subnet CIDR for the Lustre subnet
     description: CIDR subnet to use for the Lustre subnet. If not provided a dynamic subnet will be created if required.
     type: string
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)$"
     required: false
     visible:
       or:
@@ -846,7 +876,7 @@ variables:
     type: array
     items:
       type: string
-      pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:[0-2]?[0-9])|(?:3[0-2])$"
+      pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:[0-2]?[0-9]|3[0-2])$"
     unique_items: true
     minItems: 0
     visible:
@@ -1001,6 +1031,23 @@ variables:
       and:
         - ${create_bastion}
         - ${bastion_shape_config}
+  bastion_boot_volume_backup:
+    title: Enable bastion boot volume backups
+    description: Back up the bastion boot volume with an Oracle-defined backup policy.
+    type: boolean
+    default: false
+    visible: ${create_bastion}
+  bastion_boot_volume_backup_policy:
+    title: Bastion boot volume backup policy
+    description: Bronze makes monthly backups, Silver adds weekly backups, and Gold adds daily backups. Backups are kept until their retention period ends.
+    type: enum
+    enum: [Bronze, Silver, Gold]
+    default: Bronze
+    required: true
+    visible:
+      and:
+        - ${create_bastion}
+        - ${bastion_boot_volume_backup}
 
   # Bastion Service
   create_oci_bastion_service:
@@ -1015,7 +1062,7 @@ variables:
     type: array
     items:
       type: string
-      pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:[0-2]?[0-9])|(?:3[0-2])$"
+      pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:[0-2]?[0-9]|3[0-2])$"
     unique_items: true
     minItems: 1
     default: ["0.0.0.0/0"]
@@ -1240,6 +1287,23 @@ variables:
       and:
         - ${create_operator}
         - ${operator_shape_config}
+  operator_boot_volume_backup:
+    title: Enable operator boot volume backups
+    description: Back up the operator boot volume with an Oracle-defined backup policy.
+    type: boolean
+    default: false
+    visible: ${create_operator}
+  operator_boot_volume_backup_policy:
+    title: Operator boot volume backup policy
+    description: Bronze makes monthly backups, Silver adds weekly backups, and Gold adds daily backups. Backups are kept until their retention period ends.
+    type: enum
+    enum: [Bronze, Silver, Gold]
+    default: Bronze
+    required: true
+    visible:
+      and:
+        - ${create_operator}
+        - ${operator_boot_volume_backup}
 
   # Storage
   create_fss:
@@ -1325,7 +1389,7 @@ variables:
   install_monitoring:
     type: boolean
     title: Install Monitoring Stack
-    description: Install the Prometheus stack with Grafana, NVIDIA DCGM Exporter, Node Problem Detector, and AMD device metrics exporter.
+    description: Install the Prometheus stack with Grafana, NVIDIA DCGM Exporter, Node Problem Detector (unless removed for the GPU Health Monitoring add-on), and AMD device metrics exporter.
     default: true
     visible: true
   monitoring_advanced_options:
@@ -1347,8 +1411,8 @@ variables:
       - monitoring_advanced_options
   install_node_problem_detector_kube_prometheus_stack:
     type: boolean
-    title: Install Node Problem Detector & Kube Prometheus Stack
-    description: Install Node Problem Detector with the Kubernetes Prometheus stack to run GPU & RDMA health checks and use automated alerting in Grafana.
+    title: Install Kube Prometheus Stack
+    description: Install the Kubernetes Prometheus stack with Grafana dashboards and automated alerting. Node Problem Detector, which runs GPU and RDMA health checks, is also installed. It is removed only with `gpu_health_monitoring_remove_npd=true` after the GPU Health Monitoring add-on covers every GPU pool.
     default: true
     visible:
       and:
@@ -1363,7 +1427,7 @@ variables:
     title: Node Problem Detector chart version
     type: string
     required: true
-    default: "2.4.1"
+    default: "2.4.2"
     visible: false
       # and:
       # - monitoring_advanced_options
@@ -1390,13 +1454,13 @@ variables:
     title: Prometheus stack chart version
     type: string
     required: true
-    default: "87.2.1"
+    default: "93.0.0"
     visible: false
   ingress_chart_version:
     title: Ingress Controller helm chart version
     type: string
     required: true
-    default: "0.6.0"
+    default: "0.9.0"
     visible: false
   install_grafana:
     title: Grafana
@@ -1494,9 +1558,9 @@ variables:
     title: Kubernetes version
     description: The Kubernetes version for the created OKE cluster and managed nodes.
     required: true
-    default: "v1.36.1"
+    default: "v1.36.4"
     enum:
-      - "v1.36.1"
+      - "v1.36.4"
       - "v1.35.2"
       - "v1.34.2"
   control_plane_allowed_cidrs:
@@ -1506,7 +1570,7 @@ variables:
     type: array
     items:
       type: string
-      pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:[0-2]?[0-9])|(?:3[0-2])$"
+      pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:[0-2]?[0-9]|3[0-2])$"
     unique_items: true
     minItems: 0
   cni_type:
@@ -1518,6 +1582,15 @@ variables:
     - VCN-Native Pod Networking
     - Flannel
     default: VCN-Native Pod Networking
+  ip_families:
+    title: IP families
+    description: IPv4 is single stack IPv4. IPv4,IPv6 is dual stack. Dual stack makes the control plane, worker and pod subnets public. Existing subnets must be public and dual stack. With VCN-Native Pod Networking, an existing pods subnet needs two IPv6 prefixes. Changing this value replaces the cluster. A VCN that the stack created does not change from IPv4 to dual stack, so use a new stack for that change.
+    required: true
+    type: enum
+    enum:
+    - IPv4
+    - IPv4,IPv6
+    default: IPv4
   control_plane_is_public:
     title: Create the Kubernetes control plane endpoint in a public subnet and assign it a public IP address
     type: boolean
@@ -1533,7 +1606,7 @@ variables:
     description: CIDR block for Kubernetes services.
     type: string
     default: "10.96.0.0/16"
-    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9])|(?:2[0-9])|(?:30)$"
+    pattern: "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\/(?:1[6-9]|2[0-9]|30)$"
     required: false
   preferred_kubernetes_services:
     type: enum
@@ -1602,10 +1675,29 @@ variables:
     type: map(string)
     description: Additional configuration key-value pairs for the AMD GPU Operator OKE add-on.
     visible: false
+  deploy_gpu_health_monitoring:
+    title: Install GPU Health Monitoring add-on
+    type: boolean
+    description: Install the GPU Health Monitoring OKE add-on for supported managed GPU pools. It reports GPU faults as node conditions and enables the Compute RDMA GPU Monitoring plugin on GPU nodes. Keep Node Problem Detector until live add-on coverage has been verified.
+    default: true
+  gpu_health_monitoring_remove_npd:
+    title: Remove NPD after verifying GPU health coverage
+    type: boolean
+    description: Enable only after every GPU node reports GpuHealthMonitoringConfigured=True and GpuHealthMonitoringUnavailable=False. Every GPU pool must support the add-on.
+    default: false
+    visible:
+      - deploy_gpu_health_monitoring
+  gpu_health_monitoring_node_repair_dry_run:
+    title: Dry run GPU node repairs
+    type: boolean
+    description: Show the proposed repairs in the NodeHealthReports, but do not cordon, drain, reboot, stop or terminate GPU nodes. Clear this option to let the add-on repair faulty GPU nodes.
+    default: true
+    visible:
+      - deploy_gpu_health_monitoring
   deploy_nvidia_gpu_operator:
     title: Install NVIDIA GPU Operator add-on
     type: boolean
-    description: Install the NVIDIA GPU Operator OKE add-on. Requires the Node Feature Discovery add-on.
+    description: Install the NVIDIA GPU Operator OKE add-on for enabled NVIDIA pools. Requires the Node Feature Discovery add-on.
     default: true
     visible:
       - deploy_node_feature_discovery
@@ -1621,9 +1713,10 @@ variables:
     title: NVIDIA GPU Operator add-on version
     type: enum
     description: Version of the NVIDIA GPU Operator OKE add-on.
-    default: "v25.10.1"
+    default: "v26.3.3"
     required: true
     enum:
+      - "v26.3.3"
       - "v25.10.1"
       - "v25.3.4"
     visible:
@@ -1843,7 +1936,7 @@ variables:
     required: false
     default: ${kubernetes_version}
     enum:
-      - "v1.36.1"
+      - "v1.36.4"
       - "v1.35.2"
       - "v1.34.2"
 
@@ -2037,7 +2130,7 @@ variables:
     default: ${kubernetes_version}
     visible: ${worker_cpu_enabled}
     enum:
-      - "v1.36.1"
+      - "v1.36.4"
       - "v1.35.2"
       - "v1.34.2"
 
@@ -2156,7 +2249,7 @@ variables:
     default: ${kubernetes_version}
     visible: ${worker_gpu_enabled}
     enum:
-      - "v1.36.1"
+      - "v1.36.4"
       - "v1.35.2"
       - "v1.34.2"
 
@@ -2203,6 +2296,28 @@ variables:
         - ${worker_rdma_advanced_options}
         - not: [worker_rdma_use_cluster_network]
         - ${worker_rdma_use_host_group}
+  worker_rdma_use_existing_compute_cluster:
+    title: Use existing compute cluster
+    description: Place the GPU with RDMA worker pool in an existing compute cluster instead of creating a new one. Changing this on an existing stack replaces all nodes in the pool.
+    type: boolean
+    default: false
+    required: false
+    visible:
+      and:
+        - ${worker_rdma_enabled}
+        - ${worker_rdma_advanced_options}
+        - not: [worker_rdma_use_cluster_network]
+  worker_rdma_compute_cluster_id:
+    title: Compute cluster OCID
+    description: OCID of the existing compute cluster for the GPU with RDMA worker pool. It must be in the same availability domain as the pool. With Create Policies, it must be in the deployment compartment or a child compartment. The user that runs the stack needs read access to the compute cluster. Changing this on an existing stack replaces all nodes in the pool.
+    type: ocid
+    required: true
+    visible:
+      and:
+        - ${worker_rdma_enabled}
+        - ${worker_rdma_advanced_options}
+        - not: [worker_rdma_use_cluster_network]
+        - ${worker_rdma_use_existing_compute_cluster}
   worker_rdma_ad:
     title: Availability domain
     type: oci:identity:availabilitydomain:name
@@ -2319,7 +2434,7 @@ variables:
     default: ${kubernetes_version}
     visible: ${worker_rdma_enabled}
     enum:
-      - "v1.36.1"
+      - "v1.36.4"
       - "v1.35.2"
       - "v1.34.2"
 
@@ -2367,7 +2482,7 @@ variables:
     default: ${kubernetes_version}
     visible: ${worker_gmc_enabled}
     enum:
-      - "v1.36.1"
+      - "v1.36.4"
       - "v1.35.2"
       - "v1.34.2"
   worker_gmc_image_id:
@@ -2419,7 +2534,7 @@ variables:
   # Kueue
   install_kueue:
     title: Install Kueue
-    description: "Install Kueue with Topology Aware Scheduling (TAS) and create a Topology, ResourceFlavor, ClusterQueue, and LocalQueue for the active GPU worker pool."
+    description: "Install Kueue with Topology Aware Scheduling (TAS) and create a Topology, ResourceFlavor, ClusterQueue, and LocalQueue for the active GPU worker pool. The TAS resources need a GPU RDMA or GMC pool and the RDMA labeler."
     type: boolean
     default: true
   install_rdma_labeler:
@@ -2428,12 +2543,12 @@ variables:
   kueue_chart_version:
     title: Kueue Helm chart version
     type: string
-    default: "0.18.2"
+    default: "0.20.5"
     required: true
     visible: false
   kueue_local_queue_default_namespace:
     title: LocalQueue namespace
-    description: "The namespace where the Kueue default LocalQueue will be created."
+    description: "The namespace where the Kueue LocalQueue will be created."
     type: string
     default: "default"
     pattern: "^[a-z]([-a-z0-9]*[a-z0-9])?$"
@@ -2467,7 +2582,19 @@ variables:
   nvidia_dra_driver_chart_version:
     title: NVIDIA DRA Driver Helm chart version
     type: string
-    default: "0.4.0"
+    default: "0.5.1"
+    visible: false
+
+  # Dranet
+  install_dranet:
+    title: Install Dranet
+    description: "Install Dranet, the Kubernetes DRA network driver, and create the dra.net DeviceClass. Worker nodes with RDMA NICs are set to shared RDMA network namespace mode at boot. Supports single-stack IPv4 clusters only, or a BM.GPU.GB200.4 GPU Memory Cluster pool. Cannot be combined with the NVIDIA Network Operator."
+    type: boolean
+    default: false
+  dranet_chart_version:
+    title: Dranet Helm chart version
+    type: string
+    default: "v1.5.0"
     visible: false
 
   # Slinky / Slurm Operator

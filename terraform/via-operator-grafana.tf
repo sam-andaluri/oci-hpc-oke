@@ -77,7 +77,7 @@ resource "null_resource" "deploy_grafana_dashboards_and_alerts_from_operator" {
   count = alltrue([var.install_monitoring, var.install_grafana, var.install_node_problem_detector_kube_prometheus_stack, local.deploy_from_operator]) ? 1 : 0
 
   triggers = {
-    manifest_md5      = sha256(join(".", [for entry in sort(local.grafana_alert_files_path) : filemd5(entry)]))
+    manifest_md5      = sha256(join(".", concat([for entry in sort(local.grafana_alert_files_path) : filemd5(entry)], local.grafana_legacy_alert_configmaps)))
     jsonnet_source    = local.grafana_jsonnet_source_hash
     gpu_dashboard_md5 = sha256(join(".", [for name in sort(keys(local.grafana_gpu_dashboards)) : md5(local.grafana_gpu_dashboards[name])]))
     dashboard_layout  = "gpu"
@@ -125,6 +125,12 @@ resource "null_resource" "deploy_grafana_dashboards_and_alerts_from_operator" {
     destination = "/home/${self.triggers.operator_user}/grafana/dashboards/gpu/gpu-health-status.json"
   }
 
+  # Without NPD, Terraform removes the NPD conditions from the Command Center node issues history.
+  provisioner "file" {
+    content     = lookup(local.grafana_gpu_dashboards, "command-center.json", "{}")
+    destination = "/home/${self.triggers.operator_user}/grafana/dashboards/gpu/command-center.json"
+  }
+
   provisioner "file" {
     source      = "${local.grafana_jsonnet_build_dir}/oci/"
     destination = "/home/${self.triggers.operator_user}/grafana/dashboards/oci"
@@ -146,6 +152,9 @@ resource "null_resource" "deploy_grafana_dashboards_and_alerts_from_operator" {
       "export OCI_CLI_AUTH=instance_principal",
       "export PYTHONWARNINGS=\"ignore:the 'strict' parameter::urllib3.poolmanager\"",
       "kubectl delete configmap dashboard-gpu dashboard-job dashboard-node dashboard-overview --namespace ${var.monitoring_namespace} --ignore-not-found",
+      !(var.install_kueue && var.install_grafana_dashboards) ? "kubectl delete configmap dashboard-kueue --namespace ${var.monitoring_namespace} --ignore-not-found" : "",
+      !local.deploy_gpu_health_monitoring_addon ? "kubectl delete configmap dashboard-gpu-node-repairs --namespace ${var.monitoring_namespace} --ignore-not-found" : "",
+      length(local.grafana_alert_files_excluded) > 0 || length(local.grafana_legacy_alert_configmaps) > 0 ? "kubectl delete configmap ${join(" ", concat(local.grafana_legacy_alert_configmaps, [for f in local.grafana_alert_files_excluded : "alert-${trimsuffix(f, ".yaml")}"]))} --namespace ${var.monitoring_namespace} --ignore-not-found" : "",
       "cd /home/${self.triggers.operator_user}/grafana/",
       "kubectl apply -k .",
     ]))

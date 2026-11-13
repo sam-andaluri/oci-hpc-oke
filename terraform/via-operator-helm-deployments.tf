@@ -97,13 +97,14 @@ module "ingress" {
     {
       min_bw    = 10,
       max_bw    = 100,
-      lb_nsg_id = module.oke.pub_lb_nsg_id,
+      lb_nsg_id = local.lb_nsg_id_pub,
       state_id  = local.state_id
     }
   )
   helm_user_values_override = ""
 
-  depends_on = [module.oke, module.certmanager]
+  # Kueue registers a cluster-wide Deployment webhook. Without this order, it rejects the contour Deployment.
+  depends_on = [module.oke, module.certmanager, module.kueue]
 }
 
 
@@ -150,7 +151,7 @@ module "kube_prometheus_stack" {
       "--set grafana.ingress.tls[0].hosts[0]=grafana.$${INGRESS_IP}.${var.wildcard_dns_domain}",
       "--set grafana.ingress.tls[0].secretName=grafana-tls"
       ] :
-      [
+      concat([
         "--set grafana.service.type=LoadBalancer",
         "--set-string grafana.service.annotations.'oci\\.oraclecloud\\.com\\/load-balancer-type'=lb",
         "--set-string grafana.service.annotations.'service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-internal'=true",
@@ -158,16 +159,27 @@ module "kube_prometheus_stack" {
         "--set-string grafana.service.annotations.'service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-shape-flex-min'=100",
         "--set-string grafana.service.annotations.'service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-shape-flex-max'=100",
         "--set-string grafana.service.annotations.'service\\.beta\\.kubernetes\\.io\\/oci-load-balancer-security-list-management-mode'=None",
-        format("--set-string grafana.service.annotations.'oci\\.oraclecloud\\.com\\/oci-network-security-groups'=%s", module.oke.int_lb_nsg_id)
-    ]) : []
+        ], local.create_nsgs_effective ? [
+        format("--set-string grafana.service.annotations.'oci\\.oraclecloud\\.com\\/oci-network-security-groups'=%s", local.lb_nsg_id_int)
+    ] : [])) : []
   ])
 
   post_deployment_commands = []
 
   helm_template_values_override = templatefile("${path.module}/files/kube-prometheus/values.yaml.tftpl", {
-    install_grafana               = var.install_grafana
-    preferred_kubernetes_services = var.preferred_kubernetes_services
-    setup_alerting                = var.setup_alerting
+    install_grafana                   = var.install_grafana
+    preferred_kubernetes_services     = var.preferred_kubernetes_services
+    setup_alerting                    = var.setup_alerting
+    grafana_alerting_config           = var.setup_alerting ? yamldecode(file("${local.grafana_alert_dir}/${local.grafana_alerting_file}")) : null
+    prometheus_memory_request         = local.prometheus_memory_request
+    gpu_health_monitoring             = local.deploy_gpu_health_monitoring_addon
+    gpu_health_monitoring_shape_regex = local.gpu_health_monitoring_shape_regex
+    npd_removed                       = local.npd_removed
+    npd_amd_conditions                = local.npd_amd_conditions
+    npd_nvidia_conditions             = local.npd_nvidia_conditions
+    npd_amd_condition_count           = length(split("|", local.npd_amd_conditions))
+    npd_nvidia_condition_count        = length(split("|", local.npd_nvidia_conditions))
+    install_kueue                     = var.install_kueue
   })
 
   helm_user_values_override = var.install_grafana ? yamlencode(
@@ -189,12 +201,12 @@ module "kube_prometheus_stack" {
   # Kueue's mutating webhook intercepts Job creates cluster-wide; the chart's
   # admission hook Jobs fail with "no endpoints available for service
   # kueue-webhook-service" while Kueue is still starting.
-  depends_on = [module.ingress, module.kueue]
+  depends_on = [module.ingress, module.kueue, terraform_data.validate_prometheus_memory_request]
 }
 
 
 module "node_problem_detector_amd" {
-  count  = alltrue([var.install_monitoring, local.deploy_from_operator, var.install_node_problem_detector_kube_prometheus_stack, local.has_amd_gpu]) ? 1 : 0
+  count  = alltrue([var.install_monitoring, local.deploy_from_operator, var.install_node_problem_detector_kube_prometheus_stack, local.has_amd_gpu, !local.npd_removed]) ? 1 : 0
   source = "./helm-module"
 
   bastion_host    = module.oke.bastion_public_ip
@@ -223,7 +235,7 @@ module "node_problem_detector_amd" {
 }
 
 module "node_problem_detector_nvidia" {
-  count  = alltrue([var.install_monitoring, local.deploy_from_operator, var.install_node_problem_detector_kube_prometheus_stack, local.has_nvidia_gpu]) ? 1 : 0
+  count  = alltrue([var.install_monitoring, local.deploy_from_operator, var.install_node_problem_detector_kube_prometheus_stack, local.has_nvidia_gpu, !local.npd_removed]) ? 1 : 0
   source = "./helm-module"
 
   bastion_host    = module.oke.bastion_public_ip
@@ -259,7 +271,7 @@ module "node_problem_detector_nvidia" {
 
 
 resource "null_resource" "nvidia_dcgm_exporter_service_monitor" {
-  count = alltrue([var.install_monitoring, local.deploy_from_operator, var.install_node_problem_detector_kube_prometheus_stack, var.deploy_nvidia_gpu_operator, lookup(var.nvidia_gpu_operator_configuration, "dcgmExporter.enabled", "true") == "true", local.has_nvidia_gpu]) ? 1 : 0
+  count = alltrue([var.install_monitoring, local.deploy_from_operator, var.install_node_problem_detector_kube_prometheus_stack, local.deploy_nvidia_gpu_operator_addon, lookup(var.nvidia_gpu_operator_configuration, "dcgmExporter.enabled", "true") == "true"]) ? 1 : 0
 
   triggers = {
     manifest_md5    = md5(local.nvidia_dcgm_exporter_service_monitor_manifest)
