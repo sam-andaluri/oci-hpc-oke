@@ -309,6 +309,7 @@ variableGroups:
     - monitoring_namespace
     - install_node_problem_detector_kube_prometheus_stack
     - node_problem_detector_chart_version
+    - node_problem_detector_nvidia_non_rdma_shapes
     - prometheus_stack_chart_version
     - ingress_chart_version
     - install_grafana
@@ -1367,6 +1368,24 @@ variables:
       # and:
       # - monitoring_advanced_options
       # - install_node_problem_detector
+  node_problem_detector_nvidia_non_rdma_shapes:
+    title: NVIDIA non-RDMA NPD shapes
+    description: NVIDIA GPU shapes without RDMA. Node Problem Detector returns OK without starting RDMA commands on these shapes.
+    type: array
+    items:
+      type: string
+    unique_items: true
+    default:
+      - BM.GPU.L40S-NC.4
+      - BM.GPU.A10.4
+      - VM.GPU.A10.1
+      - VM.GPU.A10.2
+      - VM.GPU.A100.80G.1
+      - BM.GPU.RTXPRO.8
+    visible:
+      and:
+      - install_monitoring
+      - monitoring_advanced_options
   prometheus_stack_chart_version:
     title: Prometheus stack chart version
     type: string

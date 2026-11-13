@@ -1,6 +1,10 @@
 nameOverride: gpu-rdma-node-problem-detector-nvidia
 fullnameOverride: gpu-rdma-node-problem-detector-nvidia
 
+env:
+  - name: OKE_NPD_NVIDIA_NON_RDMA_SHAPES_B64
+    value: WyJCTS5HUFUuTDQwUy1OQy40IiwiQk0uR1BVLkExMC40IiwiVk0uR1BVLkExMC4xIiwiVk0uR1BVLkExMC4yIiwiVk0uR1BVLkExMDAuODBHLjEiLCJCTS5HUFUuUlRYUFJPLjgiXQ==
+
 settings:
   custom_monitor_definitions:
     oke-nvidia-fast.json: |

@@ -367,6 +367,19 @@ variable "node_problem_detector_chart_version" {
   type    = string
 }
 
+variable "node_problem_detector_nvidia_non_rdma_shapes" {
+  type = list(string)
+  default = [
+    "BM.GPU.L40S-NC.4",
+    "BM.GPU.A10.4",
+    "VM.GPU.A10.1",
+    "VM.GPU.A10.2",
+    "VM.GPU.A100.80G.1",
+    "BM.GPU.RTXPRO.8",
+  ]
+  description = "NVIDIA GPU shapes without RDMA. Node Problem Detector returns OK without starting RDMA commands on these shapes."
+}
+
 variable "prometheus_stack_chart_version" {
   default = "87.2.1"
   type    = string

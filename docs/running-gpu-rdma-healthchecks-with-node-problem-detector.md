@@ -56,6 +56,8 @@ Run all commands from the repository root.
 
 Some checks return a passing result when they do not apply to the current shape. The vendor-specific monitor configuration prevents AMD-only and NVIDIA-only checks from running on the wrong vendor.
 
+The NVIDIA wrapper reads `node_problem_detector_nvidia_non_rdma_shapes` from the Helm environment. For a listed shape, the wrapper returns `OK` before it starts an RDMA command. NPD then sets the related problem condition to `False`. If the wrapper cannot read the shape or the shape list, it returns `Unknown`.
+
 The B300 and GB300 RDMA checks use OCI host metadata to identify multi-plane nodes. If the required metadata is unavailable or invalid, the check returns `Unknown`. Other GPU shapes do not depend on this metadata.
 
 ## Check Schedule
@@ -78,7 +80,7 @@ The wrapper and Python health checker use three results:
 
 | Exit code | Result | Node condition status |
 |---:|---|---|
-| `0` | The check ran and passed | `False` |
+| `0` | The check passed or does not apply to the shape | `False` |
 | `1` | The check ran and found a confirmed problem | `True` |
 | `2` | The result is unavailable or unreliable | `Unknown` |
 

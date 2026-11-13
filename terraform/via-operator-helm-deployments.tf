@@ -242,7 +242,13 @@ module "node_problem_detector_nvidia" {
     "export PATH=$PATH:/home/${local.operator_user}/bin",
     "export OCI_CLI_AUTH=instance_principal"
   ]
-  deployment_extra_args    = ["--force", "--dependency-update", "--history-max 1"]
+  deployment_extra_args = [
+    "--force",
+    "--dependency-update",
+    "--history-max 1",
+    "--set-string 'env[0].name=OKE_NPD_NVIDIA_NON_RDMA_SHAPES_B64'",
+    "--set-string 'env[0].value=${base64encode(jsonencode(var.node_problem_detector_nvidia_non_rdma_shapes))}'",
+  ]
   post_deployment_commands = []
 
   helm_template_values_override = file("${path.module}/files/node-problem-detector/values.yaml")

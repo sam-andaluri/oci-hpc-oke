@@ -598,7 +598,73 @@ settings:
             }
           ]
         }
+    oke_shape_gate.py: |
+        #!/usr/bin/env python3
+        import argparse
+        import base64
+        import json
+        import os
+        import sys
+        import urllib.request
 
+        SKIP = 0
+        RUN = 1
+        UNKNOWN = 2
+        RDMA_CHECKS = {
+            "rdmalink-stat",
+            "rdmalink-flap",
+            "wpa-auth",
+            "rttcc-stat",
+            "ip-address",
+            "rdma-vf-routes",
+            "rdma-vf-counters",
+            "imex",
+        }
+
+        def load_shapes():
+            encoded_shapes = os.environ.get("OKE_NPD_NVIDIA_NON_RDMA_SHAPES_B64", "")
+            if not encoded_shapes:
+                raise ValueError("OKE_NPD_NVIDIA_NON_RDMA_SHAPES_B64 is empty")
+            shapes = json.loads(base64.b64decode(encoded_shapes, validate=True))
+            if not isinstance(shapes, list) or not all(isinstance(shape, str) for shape in shapes):
+                raise ValueError("the non-RDMA shape configuration must contain a JSON list of strings")
+            return set(shapes)
+
+        def get_shape():
+            request = urllib.request.Request(
+                "http://169.254.169.254/opc/v2/instance/",
+                headers={"Authorization": "Bearer Oracle"},
+            )
+            with urllib.request.urlopen(request, timeout=2) as response:
+                metadata = json.load(response)
+            shape = metadata.get("shape")
+            if not isinstance(shape, str) or not shape:
+                raise ValueError("instance metadata did not contain a shape")
+            return shape
+
+        def main():
+            parser = argparse.ArgumentParser()
+            parser.add_argument("--check", required=True)
+            args = parser.parse_args()
+
+            if args.check not in RDMA_CHECKS:
+                return RUN
+
+            try:
+                non_rdma_shapes = load_shapes()
+                shape = get_shape()
+            except (OSError, ValueError, json.JSONDecodeError) as error:
+                print(f"HealthcheckUnknown:: Cannot classify the node shape: {error}")
+                return UNKNOWN
+
+            if shape in non_rdma_shapes:
+                print(f"{args.check}: OK because RDMA does not apply to shape {shape}")
+                return SKIP
+
+            return RUN
+
+        if __name__ == "__main__":
+            sys.exit(main())
 
     oke_healthcheck.sh: |
         #!/bin/bash
@@ -728,6 +794,15 @@ settings:
                     return 1
                 fi
             done
+
+            src=/custom-config/oke_shape_gate.py
+            dst=$scripts_dir/oke_shape_gate.py
+            tmp=$scripts_dir/.oke_shape_gate.py.tmp.$$
+            if ! cp "$src" "$tmp" || ! mv -f "$tmp" "$dst"; then
+                rm -f "$tmp"
+                return 1
+            fi
+
         }
 
         install -d -m 0700 "$run_dir" "$bin_dir" "$cache_dir" "$log_dir" "$container_state_dir" "$scripts_dir" || exit "$UNKNOWN"
@@ -757,17 +832,40 @@ settings:
         host_scripts_dir=${scripts_dir#/host}
         host_uv_path=${uv_path#/host}
         work_log="$work_dir/output.log"
-        if nsenter -n/host/proc/1/ns/net \
-            chroot /host \
-            env UV_CACHE_DIR=/var/cache/oke-npd/uv \
-            "$host_uv_path" run \
-            "$host_scripts_dir/check_gpu_setup.py" \
-            --dry-run \
-            "--$healthcheck_type" >"$work_log" 2>&1
-        then
+        shape_gate_rc=$NONOK
+        if [ -n "${OKE_NPD_NVIDIA_NON_RDMA_SHAPES_B64:-}" ]; then
+            if nsenter -n/host/proc/1/ns/net \
+                chroot /host \
+                env \
+                UV_CACHE_DIR=/var/cache/oke-npd/uv \
+                OKE_NPD_NVIDIA_NON_RDMA_SHAPES_B64="$OKE_NPD_NVIDIA_NON_RDMA_SHAPES_B64" \
+                "$host_uv_path" run \
+                "$host_scripts_dir/oke_shape_gate.py" \
+                --check "$healthcheck_type" >"$work_log" 2>&1
+            then
+                shape_gate_rc=$OK
+            else
+                shape_gate_rc=$?
+            fi
+        fi
+
+        if [ "$shape_gate_rc" -eq "$OK" ]; then
             command_rc=$OK
+        elif [ "$shape_gate_rc" -eq "$NONOK" ]; then
+            if nsenter -n/host/proc/1/ns/net \
+                chroot /host \
+                env UV_CACHE_DIR=/var/cache/oke-npd/uv \
+                "$host_uv_path" run \
+                "$host_scripts_dir/check_gpu_setup.py" \
+                --dry-run \
+                "--$healthcheck_type" >"$work_log" 2>&1
+            then
+                command_rc=$OK
+            else
+                command_rc=$?
+            fi
         else
-            command_rc=$?
+            command_rc=$UNKNOWN
         fi
 
         log_tmp=$(mktemp "$log_dir/.latest-${healthcheck_type}.XXXXXX") || exit "$UNKNOWN"

@@ -33,6 +33,17 @@ resource "helm_release" "node_problem_detector_nvidia" {
     file("${path.module}/files/node-problem-detector/values.yaml"),
     file("${path.module}/files/node-problem-detector/values-nvidia.yaml"),
   ]
+  set = [
+    {
+      name  = "env[0].name"
+      value = "OKE_NPD_NVIDIA_NON_RDMA_SHAPES_B64"
+    },
+    {
+      name  = "env[0].value"
+      value = base64encode(jsonencode(var.node_problem_detector_nvidia_non_rdma_shapes))
+      type  = "string"
+    },
+  ]
   create_namespace  = true
   recreate_pods     = true
   force_update      = true
