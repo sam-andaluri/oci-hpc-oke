@@ -440,6 +440,18 @@ variable "node_problem_detector_nvidia_non_rdma_shapes" {
     "VM.GPU.A10.1",
     "VM.GPU.A10.2",
     "VM.GPU.A100.80G.1",
+    "VM.GPU.A100.80G.2",
+    "VM.GPU.A100.80G.4",
+    "VM.GPU.A100.40G.1",
+    "VM.GPU.A100.40G.2",
+    "VM.GPU.A100.40G.4",
+    "VM.GPU.A100.B40G.1",
+    "VM.GPU.A100.B40G.2",
+    "VM.GPU.A100.B40G.4",
+    "VM.GPU3.1",
+    "VM.GPU3.2",
+    "VM.GPU3.4",
+    "VM.GPU2.1",
     "BM.GPU.RTXPRO.8",
   ]
   description = "NVIDIA GPU shapes without RDMA. Node Problem Detector returns OK without starting RDMA commands on these shapes."

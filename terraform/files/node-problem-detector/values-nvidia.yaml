@@ -3,7 +3,7 @@ fullnameOverride: gpu-rdma-node-problem-detector-nvidia
 
 env:
   - name: OKE_NPD_NVIDIA_NON_RDMA_SHAPES_B64
-    value: WyJCTS5HUFUuTDQwUy1OQy40IiwiQk0uR1BVLkExMC40IiwiVk0uR1BVLkExMC4xIiwiVk0uR1BVLkExMC4yIiwiVk0uR1BVLkExMDAuODBHLjEiLCJCTS5HUFUuUlRYUFJPLjgiXQ==
+    value: WyJCTS5HUFUuTDQwUy1OQy40IiwiQk0uR1BVLkExMC40IiwiVk0uR1BVLkExMC4xIiwiVk0uR1BVLkExMC4yIiwiVk0uR1BVLkExMDAuODBHLjEiLCJWTS5HUFUuQTEwMC44MEcuMiIsIlZNLkdQVS5BMTAwLjgwRy40IiwiVk0uR1BVLkExMDAuNDBHLjEiLCJWTS5HUFUuQTEwMC40MEcuMiIsIlZNLkdQVS5BMTAwLjQwRy40IiwiVk0uR1BVLkExMDAuQjQwRy4xIiwiVk0uR1BVLkExMDAuQjQwRy4yIiwiVk0uR1BVLkExMDAuQjQwRy40IiwiVk0uR1BVMy4xIiwiVk0uR1BVMy4yIiwiVk0uR1BVMy40IiwiVk0uR1BVMi4xIiwiQk0uR1BVLlJUWFBSTy44Il0=
 
 settings:
   custom_monitor_definitions:
@@ -108,6 +108,18 @@ affinity:
                 - VM.GPU.A10.1
                 - VM.GPU.A10.2
                 - VM.GPU.A100.80G.1
+                - VM.GPU.A100.80G.2
+                - VM.GPU.A100.80G.4
+                - VM.GPU.A100.40G.1
+                - VM.GPU.A100.40G.2
+                - VM.GPU.A100.40G.4
+                - VM.GPU.A100.B40G.1
+                - VM.GPU.A100.B40G.2
+                - VM.GPU.A100.B40G.4
+                - VM.GPU3.1
+                - VM.GPU3.2
+                - VM.GPU3.4
+                - VM.GPU2.1
                 - BM.GPU.H200.8
                 - BM.GPU.RTXPRO.8
                 - BM.GPU.B200.8
